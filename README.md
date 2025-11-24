@@ -51,20 +51,34 @@ View real-time application logs for monitoring and troubleshooting.
 
 ### Installation
 
+**Option 1: Using Pre-built Docker Image (Recommended - No Build Required)**
+
+```bash
+# Pull and run the image from Docker Hub
+sudo docker run -d \
+  --name xtream_app \
+  -p 80:8000 \
+  -v $(pwd)/output:/output \
+  -v $(pwd)/db:/db \
+  -v $(pwd)/app.log:/app/app.log \
+  --restart unless-stopped \
+  mourabena2ui/xtream-to-strm-web:latest
+```
+
+**Option 2: Build from Source**
+
 1. **Clone the repository**
    ```bash
    git clone https://github.com/mourabena2-ui/xtream-to-strm-web.git
    cd xtream-to-strm-web
    ```
 
-2. **Start the application**
-   
-   **Option A: Using Docker Compose (recommended)**
+2. **Start with Docker Compose**
    ```bash
    sudo docker-compose up -d --build
    ```
-   
-   **Option B: Using Docker directly**
+
+   Or **build and run with Docker directly**:
    ```bash
    sudo docker build -f Dockerfile.single -t xtream-to-strm-web .
    sudo docker run -d \
@@ -77,15 +91,15 @@ View real-time application logs for monitoring and troubleshooting.
      xtream-to-strm-web
    ```
 
-3. **Access the web interface**
-   
-   Open your browser and navigate to: `http://localhost`
-   
-   Default credentials:
-   - Username: `admin`
-   - Password: `admin`
+### Access the Application
 
-   ⚠️ **Important**: Change the default credentials in production!
+Open your browser and navigate to: `http://localhost`
+
+Default credentials:
+- Username: `admin`
+- Password: `admin`
+
+⚠️ **Important**: Change the default credentials in production!
 
 ## ⚙️ Configuration
 
