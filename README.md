@@ -20,11 +20,6 @@ Monitor sync status for all subscriptions with real-time updates.
 
 ![Dashboard](screenshots/dashboard_page.png)
 
-### Configuration
-Manage your Xtream Codes subscriptions.
-
-![Configuration](screenshots/configuration_page.png)
-
 ### Bouquet Selection
 Select specific categories/bouquets to sync for movies and series.
 
@@ -58,8 +53,23 @@ View real-time application logs for monitoring and troubleshooting.
    ```
 
 2. **Start the application**
+   
+   **Option A: Using Docker Compose (recommended)**
    ```bash
    sudo docker-compose up -d --build
+   ```
+   
+   **Option B: Using Docker directly**
+   ```bash
+   sudo docker build -f Dockerfile.single -t xtream-to-strm-web .
+   sudo docker run -d \
+     --name xtream_app \
+     -p 80:8000 \
+     -v $(pwd)/output:/output \
+     -v $(pwd)/db:/db \
+     -v $(pwd)/app.log:/app/app.log \
+     --restart unless-stopped \
+     xtream-to-strm-web
    ```
 
 3. **Access the web interface**
