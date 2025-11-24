@@ -20,6 +20,11 @@ Monitor sync status for all subscriptions with real-time updates.
 
 ![Dashboard](screenshots/dashboard_page.png)
 
+### Configuration
+Manage your Xtream Codes subscriptions.
+
+![Configuration](screenshots/configuration_page.png)
+
 ### Bouquet Selection
 Select specific categories/bouquets to sync for movies and series.
 
@@ -48,7 +53,7 @@ View real-time application logs for monitoring and troubleshooting.
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/xtream-to-strm-web.git
+   git clone https://github.com/mourabena2-ui/xtream-to-strm-web.git
    cd xtream-to-strm-web
    ```
 
