@@ -186,6 +186,14 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 - **Issues**: [GitHub Issues](https://github.com/mourabena2-ui/xtream-to-strm-web/issues)
 - **Docker Hub**: [mourabena2ui/xtream-to-strm-web](https://hub.docker.com/r/mourabena2ui/xtream-to-strm-web)
 
+## ☕ Support This Project
+
+If you find this project helpful, consider supporting its development!
+
+<a href="https://www.buymeacoffee.com/mourabena" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" ></a>
+
+Your support helps maintain and improve this project. Thank you! 🙏
+
 ---
 
 <div align="center">
