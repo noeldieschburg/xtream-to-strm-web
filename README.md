@@ -5,7 +5,7 @@
 ![Xtream to STRM Logo](frontend/public/logo.png)
 
 **A modern web application for managing Xtream Codes and M3U playlists**  
-Generate `.strm` and `.nfo` files for Jellyfin and Kodi
+Generate Jellyfin-compatible `.strm` and `.nfo` files for your media server
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Docker Hub](https://img.shields.io/docker/v/mourabena2ui/xtream-to-strm-web?label=Docker%20Hub&logo=docker)](https://hub.docker.com/r/mourabena2ui/xtream-to-strm-web)
@@ -18,7 +18,9 @@ Generate `.strm` and `.nfo` files for Jellyfin and Kodi
 
 ## 🌟 Overview
 
-Xtream to STRM is a complete, production-ready web application that transforms your Xtream Codes subscriptions and M3U playlists into media server-compatible files. Built with modern technologies, it provides an intuitive interface for managing your VOD content with advanced features like selective synchronization, intelligent metadata generation, and comprehensive administration tools.
+Xtream to STRM is a complete, production-ready web application that transforms your Xtream Codes subscriptions and M3U playlists into **Jellyfin-compatible** media files. The application generates `.strm` stream files and `.nfo` metadata files following Jellyfin's naming conventions and folder structure, enabling seamless integration with your Jellyfin media server. Also compatible with Kodi and other media servers that support the same format.
+
+Built with modern technologies, it provides an intuitive interface for managing your VOD content with advanced features like selective synchronization, intelligent metadata generation, and comprehensive administration tools.
 
 ## ✨ Key Features
 
@@ -32,7 +34,7 @@ Xtream to STRM is a complete, production-ready web application that transforms y
 - **Dual Control**: Separate sync for Movies and Series
 
 ### 📋 Rich Metadata
-- **NFO Generation**: Detailed metadata files for Jellyfin/Kodi
+- **NFO Generation**: Detailed metadata files in Jellyfin format
 - **TMDB Integration**: Automatic movie/series information enrichment
 - **Configurable Formatting**: Title prefix cleaning, date formatting, and name normalization
 
@@ -117,7 +119,7 @@ Click **Sync Movies** or **Sync Series** to generate your files!
 
 ### 4. Configure Your Media Server
 
-Point Jellyfin or Kodi to the `/output` directory to scan your new content.
+Point Jellyfin to the `/output` directory to scan your new content. The generated files follow Jellyfin's naming conventions for optimal recognition.
 
 ## 🎛️ NFO Configuration
 
