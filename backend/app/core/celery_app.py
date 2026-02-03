@@ -12,7 +12,7 @@ celery_app.conf.beat_schedule = {
         'schedule': 60.0,  # Run every 60 seconds
     },
 }
-celery_app.conf.timezone = 'UTC'
+celery_app.conf.timezone = settings.TIMEZONE
 
 # Import tasks to register them
 from app.tasks import sync  # noqa

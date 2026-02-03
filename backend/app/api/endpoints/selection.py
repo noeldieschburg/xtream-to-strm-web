@@ -97,7 +97,7 @@ async def sync_movie_categories(subscription_id: int, db: Session = Depends(get_
     ).delete()
     
     # Add new categories
-    now = datetime.utcnow()
+    now = datetime.now()
     for cat in categories:
         cat_id = str(cat["category_id"])
         db.add(Category(
@@ -141,7 +141,7 @@ async def sync_series_categories(subscription_id: int, db: Session = Depends(get
     ).delete()
     
     # Add new categories
-    now = datetime.utcnow()
+    now = datetime.now()
     for cat in categories:
         cat_id = str(cat["category_id"])
         db.add(Category(

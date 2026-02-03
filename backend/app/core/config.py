@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     
     # Redis / Celery
     REDIS_URL: str = "redis://localhost:6379/0"
+    TIMEZONE: str = "UTC"
     
     # Xtream Defaults (can be overridden by DB config)
     XC_URL: Optional[str] = None

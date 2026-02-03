@@ -50,14 +50,14 @@ def get_dashboard_stats(db: Session = Depends(get_db)) -> Dict[str, Any]:
     ).count()
     
     # Error count (last 24h)
-    yesterday = datetime.utcnow() - timedelta(days=1)
+    yesterday = datetime.now() - timedelta(days=1)
     errors_24h = db.query(SyncState).filter(
         SyncState.status == "error",
         SyncState.last_sync >= yesterday
     ).count()
     
     # Success rate (last 30 days)
-    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    thirty_days_ago = datetime.now() - timedelta(days=30)
     total_syncs = db.query(SyncState).filter(
         SyncState.last_sync >= thirty_days_ago
     ).count()
