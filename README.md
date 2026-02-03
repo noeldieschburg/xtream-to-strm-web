@@ -164,12 +164,13 @@ output/
 ## 📝 Version History
 
 ### v2.6.0 (Latest)
-- ✨ **Performance**: Parallel fetching engine (significant sync speedup)
-- ✨ **Metadata**: TMDB ID folder support `Movie {tmdb-ID}`
-- ✨ **Series**: Configurable Season folders & Filename formatting
-- 🔒 **Security**: Non-root container user (`appuser`)
-- 🛠️ **Admin**: New Cache Clearing tools & Smart Database Reset
-- 🐞 Fixed redirect handling for unstable IPTV providers
+- ✨ **Performance**: Parallel fetching engine with **configurable concurrency settings** via UI.
+- ✨ **Logs**: New real-time log streaming interface for live monitoring.
+- ✨ **Metadata**: TMDB ID folder support `Movie {tmdb-ID}` for perfect matching.
+- ✨ **Series**: Configurable Season folders & Episode filename formatting.
+- 🔒 **Security**: Switched to non-root container user (`appuser`) and added protected routes.
+- 🛠️ **Admin**: Granular Cache Clearing tools & Smart Database Reset (preserves settings).
+- 🐞 Fixed redirect handling for IPTV providers and corrected hardcoded versioning.
 
 ### v2.5.0
 - ✨ Enhanced NFO title formatting options

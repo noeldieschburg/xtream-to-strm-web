@@ -37,6 +37,10 @@ def update_config(config: ConfigUpdate, db: Session = Depends(get_db)):
         updates["SERIES_USE_SEASON_FOLDERS"] = str(config.SERIES_USE_SEASON_FOLDERS).lower()
     if config.SERIES_INCLUDE_NAME_IN_FILENAME is not None:
         updates["SERIES_INCLUDE_NAME_IN_FILENAME"] = str(config.SERIES_INCLUDE_NAME_IN_FILENAME).lower()
+    if config.SYNC_PARALLELISM_MOVIES is not None:
+        updates["SYNC_PARALLELISM_MOVIES"] = str(config.SYNC_PARALLELISM_MOVIES)
+    if config.SYNC_PARALLELISM_SERIES is not None:
+        updates["SYNC_PARALLELISM_SERIES"] = str(config.SYNC_PARALLELISM_SERIES)
     
     for key, value in updates.items():
         setting = db.query(SettingsModel).filter(SettingsModel.key == key).first()

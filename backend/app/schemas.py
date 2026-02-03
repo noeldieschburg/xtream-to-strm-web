@@ -14,6 +14,8 @@ class ConfigUpdate(BaseModel):
     CLEAN_NAME: Optional[bool] = None
     SERIES_USE_SEASON_FOLDERS: Optional[bool] = None
     SERIES_INCLUDE_NAME_IN_FILENAME: Optional[bool] = None
+    SYNC_PARALLELISM_MOVIES: Optional[int] = None
+    SYNC_PARALLELISM_SERIES: Optional[int] = None
 
 class ConfigResponse(BaseModel):
     XC_URL: Optional[str] = None
@@ -27,6 +29,8 @@ class ConfigResponse(BaseModel):
     CLEAN_NAME: Optional[bool] = None
     SERIES_USE_SEASON_FOLDERS: Optional[bool] = None
     SERIES_INCLUDE_NAME_IN_FILENAME: Optional[bool] = None
+    SYNC_PARALLELISM_MOVIES: Optional[int] = None
+    SYNC_PARALLELISM_SERIES: Optional[int] = None
 
 class SyncStatusResponse(BaseModel):
     id: Optional[int] = None

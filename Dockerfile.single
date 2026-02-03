@@ -34,12 +34,13 @@ COPY --from=frontend-build /app/dist /app/static
 COPY docker_start.sh /app/start.sh
 RUN chmod +x /app/start.sh
 
-# Create non-root user
-RUN addgroup --system appgroup && adduser --system --group appuser
+# Create non-root user with specific UID/GID for better host compatibility
+RUN addgroup --gid 1000 appgroup && \
+    adduser --uid 1000 --gid 1000 --disabled-password --gecos "" appuser
 
-# Create necessary directories and set permissions
-RUN mkdir -p /app/output /app/db && \
-    chown -R appuser:appgroup /app && \
+# Create necessary directories (including those used by config) and set permissions
+RUN mkdir -p /output /db /app/output /app/db && \
+    chown -R appuser:appgroup /output /db /app && \
     chmod -R 755 /app
 
 # Switch to non-root user

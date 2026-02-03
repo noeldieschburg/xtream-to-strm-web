@@ -11,7 +11,10 @@ Automatically generates `.strm` stream files and `.nfo` metadata files following
 - **Multi-Source Support**: Xtream Codes API and M3U playlists (URL or file upload)
 - **Selective Sync**: Choose specific categories/groups for movies and series
 - **Rich Metadata**: NFO files with TMDB integration and configurable formatting
+- **Parallel Processing**: Configurable sync parallelism (Movies/Series) via Admin UI
+- **Real-time Logs**: Streaming application logs directly in the browser
 - **Modern Web UI**: Responsive dashboard with real-time sync monitoring
+- **Security**: Runs as non-root user (`appuser`) with protected admin routes
 - **Smart NFO Formatting**: Regex patterns, date formatting, name cleaning
 - **Administration Tools**: Database and file management built-in
 
@@ -91,4 +94,4 @@ MIT License - Free for personal and commercial use
 
 **Made with ❤️ for the Jellyfin community**
 
-v2.5.0 | [GitHub](https://github.com/mourabena2-ui/xtream-to-strm-web) | [Docker Hub](https://hub.docker.com/r/mourabena2ui/xtream-to-strm-web)
+v2.6.0 | [GitHub](https://github.com/mourabena2-ui/xtream-to-strm-web) | [Docker Hub](https://hub.docker.com/r/mourabena2ui/xtream-to-strm-web)

@@ -12,6 +12,8 @@ export default function Administration() {
     const [cleanName, setCleanName] = useState(false);
     const [useSeasonFolders, setUseSeasonFolders] = useState(true);
     const [includeSeriesName, setIncludeSeriesName] = useState(false);
+    const [parallelismMovies, setParallelismMovies] = useState(10);
+    const [parallelismSeries, setParallelismSeries] = useState(5);
     const [regexLoading, setRegexLoading] = useState(false);
 
     // Load current settings on mount
@@ -22,8 +24,10 @@ export default function Administration() {
                 setPrefixRegex(response.data.PREFIX_REGEX || '^(?:[A-Za-z0-9.-]+_|[A-Za-z]{2,}\\s*-\\s*)');
                 setFormatDate(response.data.FORMAT_DATE_IN_TITLE === true);
                 setCleanName(response.data.CLEAN_NAME === true);
-                setUseSeasonFolders(response.data.SERIES_USE_SEASON_FOLDERS !== 'false'); // Default TRUE if missing
+                setUseSeasonFolders(response.data.SERIES_USE_SEASON_FOLDERS !== 'false'); // Default TRUE conversation
                 setIncludeSeriesName(response.data.SERIES_INCLUDE_NAME_IN_FILENAME === 'true'); // Default FALSE
+                setParallelismMovies(parseInt(response.data.SYNC_PARALLELISM_MOVIES) || 10);
+                setParallelismSeries(parseInt(response.data.SYNC_PARALLELISM_SERIES) || 5);
             } catch (error) {
                 console.error('Failed to load settings', error);
             }
@@ -39,7 +43,9 @@ export default function Administration() {
                 FORMAT_DATE_IN_TITLE: formatDate,
                 CLEAN_NAME: cleanName,
                 SERIES_USE_SEASON_FOLDERS: useSeasonFolders,
-                SERIES_INCLUDE_NAME_IN_FILENAME: includeSeriesName
+                SERIES_INCLUDE_NAME_IN_FILENAME: includeSeriesName,
+                SYNC_PARALLELISM_MOVIES: parallelismMovies,
+                SYNC_PARALLELISM_SERIES: parallelismSeries
             });
             alert('NFO settings saved successfully!');
         } catch (error) {
@@ -306,6 +312,52 @@ export default function Administration() {
                         </Button>
                     </CardContent>
                 </Card>
+
+
+                {/* Performance Settings */}
+                <Card className="border-cyan-200 dark:border-cyan-900">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-cyan-700 dark:text-cyan-400">
+                            <Settings className="w-5 h-5" />
+                            Performance Settings
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Movies Parallel Config (Simultaneous Downloads)</label>
+                            <Input
+                                type="number"
+                                min="1"
+                                max="50"
+                                value={parallelismMovies}
+                                onChange={(e) => setParallelismMovies(parseInt(e.target.value) || 10)}
+                            />
+                            <p className="text-xs text-muted-foreground">Default: 10. Higher values need more RAM/CPU.</p>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Series Parallel Config</label>
+                            <Input
+                                type="number"
+                                min="1"
+                                max="20"
+                                value={parallelismSeries}
+                                onChange={(e) => setParallelismSeries(parseInt(e.target.value) || 5)}
+                            />
+                            <p className="text-xs text-muted-foreground">Default: 5. Series sync is intensive.</p>
+                        </div>
+
+                        <Button
+                            variant="default"
+                            className="w-full bg-cyan-600 hover:bg-cyan-700"
+                            onClick={saveNfoSettings}
+                            disabled={regexLoading}
+                        >
+                            <Settings className="w-4 h-4 mr-2" />
+                            Save Performance
+                        </Button>
+                    </CardContent>
+                </Card>
             </div>
 
             {/* Cache Management */}
@@ -381,6 +433,6 @@ export default function Administration() {
                     </Card>
                 </div>
             </div>
-        </div>
+        </div >
     );
 }

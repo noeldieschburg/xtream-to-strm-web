@@ -1,5 +1,7 @@
-import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
-import { LayoutDashboard, Settings, FileText, Activity, Tv, Radio, ChevronDown, ChevronRight, Menu, X } from 'lucide-react';
+import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate, useNavigate } from 'react-router-dom';
+import { LayoutDashboard, Settings, FileText, Activity, Tv, Radio, ChevronDown, ChevronRight, Menu, X, LogOut } from 'lucide-react';
+import Login from './pages/Login';
+import ProtectedRoute from './components/ProtectedRoute';
 import { useState, useEffect } from 'react';
 
 // Pages
@@ -22,6 +24,12 @@ function Layout({ children }: { children: React.ReactNode }) {
     const [xtreamExpanded, setXtreamExpanded] = useState(true);
     const [m3uExpanded, setM3uExpanded] = useState(true);
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const navigate = useNavigate();
+
+    const handleLogout = () => {
+        localStorage.removeItem('token');
+        navigate('/login');
+    };
 
     const isXtreamActive = location.pathname.startsWith('/xtreamtv');
     const isM3UActive = location.pathname.startsWith('/m3u');
@@ -168,7 +176,6 @@ function Layout({ children }: { children: React.ReactNode }) {
                         <span>Administration</span>
                     </Link>
 
-                    {/* Logs */}
                     <Link
                         to="/logs"
                         className={`flex items-center gap-3 px-3 py-2 rounded-md transition-colors ${location.pathname === '/logs' ? 'bg-accent text-accent-foreground' : 'hover:bg-accent hover:text-accent-foreground'
@@ -177,12 +184,21 @@ function Layout({ children }: { children: React.ReactNode }) {
                         <FileText size={20} />
                         <span>Logs</span>
                     </Link>
+
+                    {/* Logout */}
+                    <button
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-3 px-3 py-2 rounded-md transition-colors hover:bg-red-500/10 text-red-500 mt-4"
+                    >
+                        <LogOut size={20} />
+                        <span>Logout</span>
+                    </button>
                 </nav>
 
                 <div className="mt-auto pt-4 border-t border-border">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground px-3">
                         <Activity size={16} />
-                        <span>v2.5.0</span>
+                        <span>v2.6.0</span>
                     </div>
                 </div>
             </aside>
@@ -199,22 +215,23 @@ function App() {
     return (
         <Router>
             <Routes>
-                {/* Dashboard */}
-                <Route path="/" element={<Layout><Dashboard /></Layout>} />
+                <Route path="/login" element={<Login />} />
+
+                <Route path="/" element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
 
                 {/* XtreamTV */}
-                <Route path="/xtreamtv/subscriptions" element={<Layout><XTVSubscriptions /></Layout>} />
-                <Route path="/xtreamtv/selection" element={<Layout><XTVSelection /></Layout>} />
-                <Route path="/xtreamtv/scheduling" element={<Layout><XTVScheduling /></Layout>} />
+                <Route path="/xtreamtv/subscriptions" element={<ProtectedRoute><Layout><XTVSubscriptions /></Layout></ProtectedRoute>} />
+                <Route path="/xtreamtv/selection" element={<ProtectedRoute><Layout><XTVSelection /></Layout></ProtectedRoute>} />
+                <Route path="/xtreamtv/scheduling" element={<ProtectedRoute><Layout><XTVScheduling /></Layout></ProtectedRoute>} />
 
                 {/* M3U */}
-                <Route path="/m3u/sources" element={<Layout><M3USources /></Layout>} />
-                <Route path="/m3u/selection" element={<Layout><M3USelection /></Layout>} />
-                <Route path="/m3u/scheduling" element={<Layout><M3UScheduling /></Layout>} />
+                <Route path="/m3u/sources" element={<ProtectedRoute><Layout><M3USources /></Layout></ProtectedRoute>} />
+                <Route path="/m3u/selection" element={<ProtectedRoute><Layout><M3USelection /></Layout></ProtectedRoute>} />
+                <Route path="/m3u/scheduling" element={<ProtectedRoute><Layout><M3UScheduling /></Layout></ProtectedRoute>} />
 
                 {/* Administration & Logs */}
-                <Route path="/admin" element={<Layout><Administration /></Layout>} />
-                <Route path="/logs" element={<Layout><Logs /></Layout>} />
+                <Route path="/admin" element={<ProtectedRoute><Layout><Administration /></Layout></ProtectedRoute>} />
+                <Route path="/logs" element={<ProtectedRoute><Layout><Logs /></Layout></ProtectedRoute>} />
 
                 {/* Redirect all other routes to dashboard */}
                 <Route path="*" element={<Navigate to="/" replace />} />

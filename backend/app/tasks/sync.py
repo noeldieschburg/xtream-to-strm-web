@@ -110,7 +110,12 @@ async def process_movies(db: Session, xc: XtreamClient, fm: FileManager, subscri
             db.delete(movie)
         
         # Process Additions/Updates with Parallel Fetching
-        batch_size = 10 # Parallel requests
+        try:
+            parallelism = int(settings.get("SYNC_PARALLELISM_MOVIES", "10"))
+        except ValueError:
+            parallelism = 10
+            
+        batch_size = parallelism
         semaphore = asyncio.Semaphore(batch_size)
 
         async def process_single_movie(movie):
@@ -302,7 +307,12 @@ async def process_series(db: Session, xc: XtreamClient, fm: FileManager, subscri
             db.delete(series)
 
         # Process Additions/Updates Parallel
-        batch_size = 5 # Series sync is heavier (many episodes), limit concurrency
+        try:
+            parallelism = int(settings.get("SYNC_PARALLELISM_SERIES", "5"))
+        except ValueError:
+            parallelism = 5
+
+        batch_size = parallelism
         semaphore = asyncio.Semaphore(batch_size)
 
         async def process_single_series(series):
