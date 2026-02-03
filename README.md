@@ -79,6 +79,8 @@ services:
   app:
     image: mourabena2ui/xtream-to-strm-web:latest
     container_name: xtream_app
+    environment:
+      - TZ=Europe/Paris
     ports:
       - "8000:8000"
     volumes:
@@ -163,7 +165,13 @@ output/
 
 ## 📝 Version History
 
-### v2.6.0 (Latest)
+### v2.6.1 (Latest)
+- 🌍 **Timezone Support**: Added full support for local server time via `TZ` environment variable (default: `Europe/Paris`).
+- 🕒 **Core Engine**: Migrated all backend logic from UTC to local time for accurate task scheduling and logging.
+- 🎨 **UI Fix**: Implemented `formatDateTime` to prevent browser timezone shifts, ensuring consistency between server logs and dashboard.
+- 🐳 **Docker**: Optimized container startup and environment configuration for timezone persistence.
+
+### v2.6.0
 - ✨ **Performance**: Parallel fetching engine with **configurable concurrency settings** via UI.
 - ✨ **Logs**: New real-time log streaming interface for live monitoring.
 - ✨ **Metadata**: TMDB ID folder support `Movie {tmdb-ID}` for perfect matching.
