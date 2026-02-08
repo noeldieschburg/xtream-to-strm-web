@@ -8,67 +8,47 @@ from app.db.base import Base
 from app.db.session import engine
 import os
 
-# Run database migrations
-def _run_migrations():
-    import sys
-    import os
-    from pathlib import Path
-    
-    # Try multiple ways to import and run
-    try:
-        # 1. Try common import paths
-        migration_func = None
-        try:
-            from migrations.apply_migrations import apply_migrations
-            migration_func = apply_migrations
-        except ImportError:
-            try:
-                from backend.migrations.apply_migrations import apply_migrations
-                migration_func = apply_migrations
-            except ImportError:
-                pass
-        
-        if migration_func:
-            migration_func()
-        else:
-            # 2. Try direct script execution if import fails
-            possible_scripts = [
-                "/app/migrations/apply_migrations.py",
-                "migrations/apply_migrations.py",
-                "backend/migrations/apply_migrations.py"
-            ]
-            for script in possible_scripts:
-                if os.path.exists(script):
-                    os.system(f"{sys.executable} {script}")
-                    break
-    except Exception as e:
-        print(f"Migration error: {e}")
-
-_run_migrations()
-
-# Create tables
+# Create tables first (for new installations)
 Base.metadata.create_all(bind=engine)
 
-# Panic check: Verify critical columns exist
-def _verify_schema():
-    import sqlite3
-    db_path = settings.DATABASE_URL.replace("sqlite:////", "/").replace("sqlite:///", "")
-    if not os.path.exists(db_path):
-        return
+# Self-healing schema: Ensure critical columns exist using SQLAlchemy native engine
+def _ensure_schema_up_to_date():
+    from sqlalchemy import inspect, text
+    import time
+    
+    print("🩺 Checking database schema...")
     try:
-        conn = sqlite3.connect(db_path)
-        cols = [row[1] for row in conn.execute("PRAGMA table_info(subscriptions)").fetchall()]
-        conn.close()
+        inspector = inspect(engine)
+        columns = [c['name'] for c in inspector.get_columns("subscriptions")]
         
-        required = ["download_movies_dir", "download_series_dir", "max_parallel_downloads"]
-        missing = [c for c in required if c not in cols]
+        required_migrations = [
+            ("download_movies_dir", "TEXT DEFAULT '/output/downloads/movies'"),
+            ("download_series_dir", "TEXT DEFAULT '/output/downloads/series'"),
+            ("max_parallel_downloads", "INTEGER DEFAULT 2"),
+            ("download_segments", "INTEGER DEFAULT 1")
+        ]
+        
+        missing = [m for m in required_migrations if m[0] not in columns]
+        
         if missing:
-            print(f"❌ CRITICAL ERROR: Migration failed. Missing columns in 'subscriptions': {missing}")
-            # In production, we might want to sys.exit(1) here to force a restart/fix
+            print(f"🔧 Missing {len(missing)} columns in 'subscriptions'. Repairing...")
+            with engine.connect() as conn:
+                for col_name, col_type in missing:
+                    try:
+                        print(f"  Adding column: {col_name}...")
+                        conn.execute(text(f"ALTER TABLE subscriptions ADD COLUMN {col_name} {col_type}"))
+                        conn.commit()
+                        print(f"  ✅ Added {col_name}")
+                    except Exception as e:
+                        print(f"  ⚠️ Could not add {col_name}: {e}")
+            print("🎉 Schema repair complete.")
+        else:
+            print("✅ Database schema is up to date.")
+            
     except Exception as e:
-        print(f"Schema verification warning: {e}")
+        print(f"❌ Schema check failed: {e}")
 
-_verify_schema()
+_ensure_schema_up_to_date()
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
