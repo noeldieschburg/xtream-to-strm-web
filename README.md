@@ -10,7 +10,7 @@ Generate Jellyfin-compatible `.strm` and `.nfo` files for your media server
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Docker Hub](https://img.shields.io/docker/v/mourabena2ui/xtream-to-strm-web?label=Docker%20Hub&logo=docker)](https://hub.docker.com/r/mourabena2ui/xtream-to-strm-web)
 [![Docker Pulls](https://img.shields.io/docker/pulls/mourabena2ui/xtream-to-strm-web)](https://hub.docker.com/r/mourabena2ui/xtream-to-strm-web)
-[![Version](https://img.shields.io/badge/version-3.0.0-blue.svg)](https://github.com/mourabena2-ui/xtream-to-strm-web/releases)
+[![Version](https://img.shields.io/badge/version-3.0.2-blue.svg)](https://github.com/mourabena2-ui/xtream-to-strm-web/releases)
 
 </div>
 
@@ -164,6 +164,10 @@ output/
 - **Containerization**: Docker (multi-stage build)
 
 ## 📝 Version History
+
+### v3.0.2 (Hotfix)
+- 🧪 **Migration Stability**: Integrated database migration triggers directly into `main.py` for guaranteed execution across all environments.
+- 🔧 **Path Resolution**: Robust database path discovery in migration scripts (supports relative and absolute paths).
 
 ### v3.0.1 (Hotfix)
 - 🔧 **Database Migration**: Added automated SQL migration system to handle schema updates for existing users (fixing `no such column` errors).

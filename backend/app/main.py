@@ -8,6 +8,19 @@ from app.db.base import Base
 from app.db.session import engine
 import os
 
+# Run database migrations
+try:
+    from backend.migrations.apply_migrations import apply_migrations
+    apply_migrations()
+except ImportError:
+    try:
+        from migrations.apply_migrations import apply_migrations
+        apply_migrations()
+    except Exception as e:
+        print(f"Migration check skipped/failed: {e}")
+except Exception as e:
+    print(f"Migration error: {e}")
+
 # Create tables
 Base.metadata.create_all(bind=engine)
 
