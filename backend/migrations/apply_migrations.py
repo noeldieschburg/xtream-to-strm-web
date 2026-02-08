@@ -24,7 +24,7 @@ def apply_migrations():
         if db_path.startswith("sqlite:////"):
             db_path = db_path.replace("sqlite:////", "/")
         else:
-            db_path = db_path.replace("sqlite:/// ", "")
+            db_path = db_path.replace("sqlite:///", "")
     
     # Clean up any potential double slashes
     db_path = os.path.normpath(db_path)

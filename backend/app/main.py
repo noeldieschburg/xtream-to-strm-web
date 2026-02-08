@@ -9,20 +9,66 @@ from app.db.session import engine
 import os
 
 # Run database migrations
-try:
-    from backend.migrations.apply_migrations import apply_migrations
-    apply_migrations()
-except ImportError:
+def _run_migrations():
+    import sys
+    import os
+    from pathlib import Path
+    
+    # Try multiple ways to import and run
     try:
-        from migrations.apply_migrations import apply_migrations
-        apply_migrations()
+        # 1. Try common import paths
+        migration_func = None
+        try:
+            from migrations.apply_migrations import apply_migrations
+            migration_func = apply_migrations
+        except ImportError:
+            try:
+                from backend.migrations.apply_migrations import apply_migrations
+                migration_func = apply_migrations
+            except ImportError:
+                pass
+        
+        if migration_func:
+            migration_func()
+        else:
+            # 2. Try direct script execution if import fails
+            possible_scripts = [
+                "/app/migrations/apply_migrations.py",
+                "migrations/apply_migrations.py",
+                "backend/migrations/apply_migrations.py"
+            ]
+            for script in possible_scripts:
+                if os.path.exists(script):
+                    os.system(f"{sys.executable} {script}")
+                    break
     except Exception as e:
-        print(f"Migration check skipped/failed: {e}")
-except Exception as e:
-    print(f"Migration error: {e}")
+        print(f"Migration error: {e}")
+
+_run_migrations()
 
 # Create tables
 Base.metadata.create_all(bind=engine)
+
+# Panic check: Verify critical columns exist
+def _verify_schema():
+    import sqlite3
+    db_path = settings.DATABASE_URL.replace("sqlite:////", "/").replace("sqlite:///", "")
+    if not os.path.exists(db_path):
+        return
+    try:
+        conn = sqlite3.connect(db_path)
+        cols = [row[1] for row in conn.execute("PRAGMA table_info(subscriptions)").fetchall()]
+        conn.close()
+        
+        required = ["download_movies_dir", "download_series_dir", "max_parallel_downloads"]
+        missing = [c for c in required if c not in cols]
+        if missing:
+            print(f"❌ CRITICAL ERROR: Migration failed. Missing columns in 'subscriptions': {missing}")
+            # In production, we might want to sys.exit(1) here to force a restart/fix
+    except Exception as e:
+        print(f"Schema verification warning: {e}")
+
+_verify_schema()
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
