@@ -10,7 +10,7 @@ Generate Jellyfin-compatible `.strm` and `.nfo` files for your media server
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Docker Hub](https://img.shields.io/docker/v/mourabena2ui/xtream-to-strm-web?label=Docker%20Hub&logo=docker)](https://hub.docker.com/r/mourabena2ui/xtream-to-strm-web)
 [![Docker Pulls](https://img.shields.io/docker/pulls/mourabena2ui/xtream-to-strm-web)](https://hub.docker.com/r/mourabena2ui/xtream-to-strm-web)
-[![Version](https://img.shields.io/badge/version-2.6.0-blue.svg)](https://github.com/mourabena2-ui/xtream-to-strm-web/releases)
+[![Version](https://img.shields.io/badge/version-3.0.0-blue.svg)](https://github.com/mourabena2-ui/xtream-to-strm-web/releases)
 
 </div>
 
@@ -164,6 +164,14 @@ output/
 - **Containerization**: Docker (multi-stage build)
 
 ## 📝 Version History
+
+### v3.0.0
+- ✨ **Introduced Download Module**: New system to browse and download media directly to your server.
+- ✨ **Auto-Download Monitoring**: Monitor movies, series, and **series categories** for new automatic downloads.
+- ✨ **Intelligent Queue**: Optimized download queue with strict `max_parallel_downloads` enforcement and bulk-add performance.
+- 🔧 **Enhanced Path Resolution**: Better folder structure (Category/Series/Season) and direct Xtream API fallback for metadata.
+- 🔧 **Sanitization**: Improved title cleaning to handle separators and country prefixes.
+- 🛠️ **Deep Analysis**: Refined various backend components for better concurrency and data type consistency.
 
 ### v2.6.1 (Latest)
 - 🌍 **Timezone Support**: Added full support for local server time via `TZ` environment variable (default: `Europe/Paris`).

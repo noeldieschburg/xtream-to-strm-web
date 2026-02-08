@@ -41,12 +41,11 @@ class FileManager:
         except OSError:
             pass # Directory not empty
 
-    def generate_movie_nfo(self, movie_data: dict, prefix_regex: Optional[str] = None, format_date: bool = False, clean_name: bool = False) -> str:
-        """Generate NFO file for a movie with comprehensive metadata"""
-        tmdb_id = movie_data.get('tmdb') or movie_data.get('tmdb_id', '')
-        # Use o_name as title if available, otherwise name
-        title = movie_data.get('o_name') or movie_data.get('name', 'Unknown')
-        
+    def clean_title(self, title: str, prefix_regex: Optional[str] = None, format_date: bool = False, clean_name: bool = False) -> str:
+        """Centralized logic to clean media titles based on settings"""
+        if not title:
+            return "Unknown"
+            
         # Strip language prefix
         regex = prefix_regex if prefix_regex else r'^(?:[A-Za-z0-9.-]+_|[A-Za-z]{2,}\s*-\s*)'
         try:
@@ -54,13 +53,84 @@ class FileManager:
         except re.error:
             title = re.sub(r'^(?:[A-Za-z0-9.-]+_|[A-Za-z]{2,}\s*-\s*)', '', title)
             
-        # Format date at end
+        # Format date at end (e.g. "Movie_2024" -> "Movie (2024)")
         if format_date:
             title = re.sub(r'[_\s](\d{4})$', r' (\1)', title)
             
-        # Clean name
+        # Clean name (underscores to spaces)
         if clean_name:
             title = title.replace('_', ' ')
+            
+        return title.strip()
+
+    def get_movie_target_info(self, movie_data: dict, cat_name: str, prefix_regex: Optional[str] = None, format_date: bool = False, clean_name: bool = False) -> dict:
+        """Determine target directory and filename for a movie"""
+        name = movie_data.get('name', 'Unknown')
+        o_name = movie_data.get('o_name')
+        tmdb_id = movie_data.get('tmdb') or movie_data.get('tmdb_id', '')
+        
+        # Priority for cleaning: o_name > name
+        title_to_clean = o_name or name
+        cleaned_title = self.clean_title(title_to_clean, prefix_regex, format_date, clean_name)
+        
+        safe_cat = self.sanitize_name(cat_name)
+        safe_title = self.sanitize_name(cleaned_title)
+        
+        cat_dir = os.path.join(self.output_dir, safe_cat)
+        
+        if tmdb_id and str(tmdb_id) not in ['0', 'None', 'null', '']:
+            folder_name = f"{safe_title} {{tmdb-{tmdb_id}}}"
+            target_dir = os.path.join(cat_dir, folder_name)
+            filename_base = folder_name
+        else:
+            target_dir = cat_dir
+            filename_base = safe_title
+            
+        return {
+            "cat_dir": cat_dir,
+            "target_dir": target_dir,
+            "filename_base": filename_base,
+            "cleaned_title": cleaned_title,
+            "tmdb_id": tmdb_id if tmdb_id and str(tmdb_id) not in ['0', 'None', 'null', ''] else None
+        }
+
+    def get_series_target_info(self, series_data: dict, cat_name: str, prefix_regex: Optional[str] = None, format_date: bool = False, clean_name: bool = False, use_category_folders: bool = True) -> dict:
+        """Determine target directory and base folder name for a series"""
+        name = series_data.get('name', 'Unknown')
+        o_name = series_data.get('o_name')
+        tmdb_id = series_data.get('tmdb') or series_data.get('tmdb_id', '')
+        
+        title_to_clean = o_name or name
+        cleaned_title = self.clean_title(title_to_clean, prefix_regex, format_date, clean_name)
+        
+        safe_cat = self.sanitize_name(cat_name)
+        safe_title = self.sanitize_name(cleaned_title)
+        
+        if use_category_folders:
+            base_parent_dir = os.path.join(self.output_dir, safe_cat)
+        else:
+            base_parent_dir = self.output_dir
+            
+        if tmdb_id and str(tmdb_id) not in ['0', 'None', 'null', '']:
+            folder_name = f"{safe_title} {{tmdb-{tmdb_id}}}"
+        else:
+            folder_name = safe_title
+            
+        series_dir = os.path.join(base_parent_dir, folder_name)
+        
+        return {
+            "cat_dir": os.path.join(self.output_dir, safe_cat),
+            "series_dir": series_dir,
+            "folder_name": folder_name,
+            "cleaned_title": cleaned_title,
+            "safe_series_name": safe_title,
+            "tmdb_id": tmdb_id if tmdb_id and str(tmdb_id) not in ['0', 'None', 'null', ''] else None
+        }
+
+    def generate_movie_nfo(self, movie_data: dict, prefix_regex: Optional[str] = None, format_date: bool = False, clean_name: bool = False) -> str:
+        """Generate NFO file for a movie with comprehensive metadata"""
+        tmdb_id = movie_data.get('tmdb') or movie_data.get('tmdb_id', '')
+        title = self.clean_title(movie_data.get('o_name') or movie_data.get('name', 'Unknown'), prefix_regex, format_date, clean_name)
         
         plot = movie_data.get('plot') or movie_data.get('description', '')
         year = movie_data.get('year') or movie_data.get('releasedate', '')
@@ -190,18 +260,7 @@ class FileManager:
     def generate_show_nfo(self, series_data: dict, prefix_regex: Optional[str] = None, format_date: bool = False, clean_name: bool = False) -> str:
         """Generate NFO file for a TV show"""
         tmdb_id = series_data.get('tmdb') or series_data.get('tmdb_id', '')
-        title = series_data.get('o_name') or series_data.get('name', 'Unknown')
-
-        regex = prefix_regex if prefix_regex else r'^(?:[A-Za-z0-9.-]+_|[A-Za-z]{2,}\s*-\s*)'
-        try:
-            title = re.sub(regex, '', title)
-        except re.error:
-            title = re.sub(r'^(?:[A-Za-z0-9.-]+_|[A-Za-z]{2,}\s*-\s*)', '', title)
-            
-        if format_date:
-            title = re.sub(r'[_\s](\d{4})$', r' (\1)', title)
-        if clean_name:
-            title = title.replace('_', ' ')
+        title = self.clean_title(series_data.get('o_name') or series_data.get('name', 'Unknown'), prefix_regex, format_date, clean_name)
         
         plot = series_data.get('plot') or series_data.get('description', '')
         year = series_data.get('year') or series_data.get('releaseDate', '')

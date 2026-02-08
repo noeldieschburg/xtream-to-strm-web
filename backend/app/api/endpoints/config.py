@@ -2,10 +2,36 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.settings import SettingsModel
-from app.schemas import ConfigUpdate, ConfigResponse
+from app.models.downloads import DownloadSettingsGlobal
+from app.schemas import ConfigUpdate, ConfigResponse, DownloadSettingsGlobalResponse, DownloadSettingsGlobalUpdate
 from app.api import deps
 
 router = APIRouter()
+
+@router.get("/downloads", response_model=DownloadSettingsGlobalResponse)
+def get_download_settings(db: Session = Depends(get_db)):
+    settings = db.query(DownloadSettingsGlobal).first()
+    if not settings:
+        settings = DownloadSettingsGlobal()
+        db.add(settings)
+        db.commit()
+        db.refresh(settings)
+    return settings
+
+@router.post("/downloads", response_model=DownloadSettingsGlobalResponse)
+def update_download_settings(settings_in: DownloadSettingsGlobalUpdate, db: Session = Depends(get_db)):
+    settings = db.query(DownloadSettingsGlobal).first()
+    if not settings:
+        settings = DownloadSettingsGlobal()
+        db.add(settings)
+    
+    update_data = settings_in.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(settings, field, value)
+        
+    db.commit()
+    db.refresh(settings)
+    return settings
 
 @router.get("/", response_model=ConfigResponse)
 def get_config(db: Session = Depends(get_db)):

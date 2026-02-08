@@ -1,4 +1,5 @@
-# Xtream to STRM - Jellyfin Media Management
+# Xtream to STRM v3.0.0
+- Jellyfin Media Management
 
 Transform your Xtream Codes subscriptions and M3U playlists into Jellyfin-compatible media files with this modern, production-ready web application.
 

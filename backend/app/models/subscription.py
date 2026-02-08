@@ -11,4 +11,11 @@ class Subscription(Base):
     password = Column(String, nullable=False)
     movies_dir = Column(String, nullable=False)
     series_dir = Column(String, nullable=False)
+    
+    # Download specific settings
+    download_movies_dir = Column(String, default="/output/downloads/movies")
+    download_series_dir = Column(String, default="/output/downloads/series")
+    max_parallel_downloads = Column(Integer, default=2)
+    download_segments = Column(Integer, default=1)
+    
     is_active = Column(Boolean, default=True)

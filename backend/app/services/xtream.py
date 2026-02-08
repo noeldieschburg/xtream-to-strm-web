@@ -36,8 +36,26 @@ class XtreamClient:
                 logger.error(f"Error fetching {action}: {e}")
                 raise
 
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
+    def _request_sync(self, action: str, **kwargs) -> Any:
+        with httpx.Client(timeout=60.0, follow_redirects=True) as client:
+            params = self._get_params(action, **kwargs)
+            try:
+                response = client.get(self.api_url, params=params)
+                response.raise_for_status()
+                return response.json()
+            except httpx.HTTPStatusError as e:
+                logger.error(f"HTTP error for {action}: {e}")
+                raise
+            except Exception as e:
+                logger.error(f"Error fetching {action}: {e}")
+                raise
+
     async def get_vod_categories(self) -> List[Dict]:
         return await self._request("get_vod_categories")
+
+    def get_vod_categories_sync(self) -> List[Dict]:
+        return self._request_sync("get_vod_categories")
 
     async def get_vod_streams(self, category_id: Optional[str] = None) -> List[Dict]:
         kwargs = {}
@@ -45,8 +63,17 @@ class XtreamClient:
             kwargs["category_id"] = category_id
         return await self._request("get_vod_streams", **kwargs)
 
+    def get_vod_streams_sync(self, category_id: Optional[str] = None) -> List[Dict]:
+        kwargs = {}
+        if category_id:
+            kwargs["category_id"] = category_id
+        return self._request_sync("get_vod_streams", **kwargs)
+
     async def get_series_categories(self) -> List[Dict]:
         return await self._request("get_series_categories")
+
+    def get_series_categories_sync(self) -> List[Dict]:
+        return self._request_sync("get_series_categories")
 
     async def get_series(self, category_id: Optional[str] = None) -> List[Dict]:
         kwargs = {}
@@ -54,8 +81,17 @@ class XtreamClient:
             kwargs["category_id"] = category_id
         return await self._request("get_series", **kwargs)
 
+    def get_series_sync(self, category_id: Optional[str] = None) -> List[Dict]:
+        kwargs = {}
+        if category_id:
+            kwargs["category_id"] = category_id
+        return self._request_sync("get_series", **kwargs)
+
     async def get_series_info(self, series_id: str) -> Dict:
         return await self._request("get_series_info", series_id=series_id)
+
+    def get_series_info_sync(self, series_id: str) -> Dict:
+        return self._request_sync("get_series_info", series_id=series_id)
 
     async def get_vod_info(self, vod_id: str) -> Dict:
         return await self._request("get_vod_info", vod_id=vod_id)

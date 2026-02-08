@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Settings, FileText, Activity, Tv, Radio, ChevronDown, ChevronRight, Menu, X, LogOut } from 'lucide-react';
+import { LayoutDashboard, Settings, FileText, Activity, Tv, Radio, Download, ChevronDown, ChevronRight, Menu, X, LogOut } from 'lucide-react';
 import Login from './pages/Login';
 import ProtectedRoute from './components/ProtectedRoute';
 import { useState, useEffect } from 'react';
@@ -19,10 +19,16 @@ import M3USources from './pages/m3u/M3USources';
 import M3USelection from './pages/m3u/M3USelection';
 import M3UScheduling from './pages/m3u/M3UScheduling';
 
+// Download Pages
+import Downloads from './pages/Downloads';
+import DownloadSelection from './pages/DownloadSelection';
+import MonitoredList from './pages/MonitoredList';
+
 function Layout({ children }: { children: React.ReactNode }) {
     const location = useLocation();
     const [xtreamExpanded, setXtreamExpanded] = useState(true);
     const [m3uExpanded, setM3uExpanded] = useState(true);
+    const [downloadsExpanded, setDownloadsExpanded] = useState(true);
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const navigate = useNavigate();
 
@@ -33,6 +39,7 @@ function Layout({ children }: { children: React.ReactNode }) {
 
     const isXtreamActive = location.pathname.startsWith('/xtreamtv');
     const isM3UActive = location.pathname.startsWith('/m3u');
+    const isDownloadsActive = location.pathname.startsWith('/downloads');
 
     // Close sidebar when route changes on mobile
     useEffect(() => {
@@ -166,6 +173,46 @@ function Layout({ children }: { children: React.ReactNode }) {
                         )}
                     </div>
 
+                    {/* Downloads Group */}
+                    <div>
+                        <button
+                            onClick={() => setDownloadsExpanded(!downloadsExpanded)}
+                            className={`w-full flex items-center justify-between gap-3 px-3 py-2 rounded-md transition-colors ${isDownloadsActive ? 'bg-accent/50 text-accent-foreground' : 'hover:bg-accent hover:text-accent-foreground'
+                                }`}
+                        >
+                            <div className="flex items-center gap-3">
+                                <Download size={20} />
+                                <span>Downloads</span>
+                            </div>
+                            {downloadsExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                        </button>
+                        {downloadsExpanded && (
+                            <div className="ml-6 mt-1 space-y-1">
+                                <Link
+                                    to="/downloads/selection"
+                                    className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${location.pathname === '/downloads/selection' ? 'bg-accent text-accent-foreground' : 'hover:bg-accent hover:text-accent-foreground'
+                                        }`}
+                                >
+                                    <span>Media Selection</span>
+                                </Link>
+                                <Link
+                                    to="/downloads/monitored"
+                                    className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${location.pathname === '/downloads/monitored' ? 'bg-accent text-accent-foreground' : 'hover:bg-accent hover:text-accent-foreground'
+                                        }`}
+                                >
+                                    <span>Active Surveillance</span>
+                                </Link>
+                                <Link
+                                    to="/downloads/manager"
+                                    className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${location.pathname === '/downloads/manager' ? 'bg-accent text-accent-foreground' : 'hover:bg-accent hover:text-accent-foreground'
+                                        }`}
+                                >
+                                    <span>Download Manager</span>
+                                </Link>
+                            </div>
+                        )}
+                    </div>
+
                     {/* Administration */}
                     <Link
                         to="/admin"
@@ -198,7 +245,7 @@ function Layout({ children }: { children: React.ReactNode }) {
                 <div className="mt-auto pt-4 border-t border-border">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground px-3">
                         <Activity size={16} />
-                        <span>v2.6.1</span>
+                        <span>v3.0.0</span>
                     </div>
                 </div>
             </aside>
@@ -228,6 +275,11 @@ function App() {
                 <Route path="/m3u/sources" element={<ProtectedRoute><Layout><M3USources /></Layout></ProtectedRoute>} />
                 <Route path="/m3u/selection" element={<ProtectedRoute><Layout><M3USelection /></Layout></ProtectedRoute>} />
                 <Route path="/m3u/scheduling" element={<ProtectedRoute><Layout><M3UScheduling /></Layout></ProtectedRoute>} />
+
+                {/* Downloads */}
+                <Route path="/downloads/selection" element={<ProtectedRoute><Layout><DownloadSelection /></Layout></ProtectedRoute>} />
+                <Route path="/downloads/monitored" element={<ProtectedRoute><Layout><MonitoredList /></Layout></ProtectedRoute>} />
+                <Route path="/downloads/manager" element={<ProtectedRoute><Layout><Downloads /></Layout></ProtectedRoute>} />
 
                 {/* Administration & Logs */}
                 <Route path="/admin" element={<ProtectedRoute><Layout><Administration /></Layout></ProtectedRoute>} />

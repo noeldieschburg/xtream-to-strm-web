@@ -85,27 +85,23 @@ async def process_movies(db: Session, xc: XtreamClient, fm: FileManager, subscri
         # Process Deletions
         for movie in to_delete:
             cat_name = cat_map.get(movie.category_id, "Uncategorized")
-            safe_cat = fm.sanitize_name(cat_name)
+            target_info = fm.get_movie_target_info(
+                {"name": movie.name, "tmdb": movie.tmdb_id}, 
+                cat_name, prefix_regex, format_date, clean_name
+            )
+            
+            # 1. New Structure removal
+            if os.path.exists(target_info["target_dir"]):
+                shutil.rmtree(target_info["target_dir"])
+            
+            # 2. Old Structure removal (fallback)
             safe_name = fm.sanitize_name(movie.name)
-            tmdb_id = movie.tmdb_id
-
-            # Old flat or new folder structure? Try both removals
-            
-            # 1. New Structure: Category/MovieName {tmdb-ID}/
-            if tmdb_id:
-                 folder_name = f"{safe_name} {{tmdb-{tmdb_id}}}"
-                 movie_dir = f"{fm.output_dir}/{safe_cat}/{folder_name}"
-                 if os.path.exists(movie_dir):
-                     shutil.rmtree(movie_dir)
-            
-            # 2. Old Structure: Category/MovieName.strm
-            # Also clean up old files if they exist (migration or fallback)
-            old_path = f"{fm.output_dir}/{safe_cat}/{safe_name}.strm"
-            old_nfo = f"{fm.output_dir}/{safe_cat}/{safe_name}.nfo"
+            old_path = f"{target_info['cat_dir']}/{safe_name}.strm"
+            old_nfo = f"{target_info['cat_dir']}/{safe_name}.nfo"
             await fm.delete_file(old_path)
             await fm.delete_file(old_nfo)
 
-            await fm.delete_directory_if_empty(f"{fm.output_dir}/{safe_cat}")
+            await fm.delete_directory_if_empty(target_info['cat_dir'])
             
             db.delete(movie)
         
@@ -141,24 +137,14 @@ async def process_movies(db: Session, xc: XtreamClient, fm: FileManager, subscri
                         pass
 
                     cat_name = cat_map.get(cat_id, "Uncategorized")
-                    safe_cat = fm.sanitize_name(cat_name)
-                    safe_name = fm.sanitize_name(name)
+                    target_info = fm.get_movie_target_info(movie, cat_name, prefix_regex, format_date, clean_name)
                     
-                    cat_dir = f"{fm.output_dir}/{safe_cat}"
-                    fm.ensure_directory(cat_dir)
+                    fm.ensure_directory(target_info["cat_dir"])
+                    if target_info["target_dir"] != target_info["cat_dir"]:
+                        fm.ensure_directory(target_info["target_dir"])
                     
-                    # Folder Structure Logic
-                    if tmdb_id and str(tmdb_id) not in ['0', 'None', 'null', '']:
-                         folder_name = f"{safe_name} {{tmdb-{tmdb_id}}}"
-                         movie_target_dir = f"{cat_dir}/{folder_name}"
-                         fm.ensure_directory(movie_target_dir)
-                         
-                         strm_path = f"{movie_target_dir}/{folder_name}.strm"
-                         nfo_path = f"{movie_target_dir}/{folder_name}.nfo"
-                    else:
-                         # Fallback to flat structure if no TMDB ID
-                         strm_path = f"{cat_dir}/{safe_name}.strm"
-                         nfo_path = f"{cat_dir}/{safe_name}.nfo"
+                    strm_path = os.path.join(target_info["target_dir"], f"{target_info['filename_base']}.strm")
+                    nfo_path = os.path.join(target_info["target_dir"], f"{target_info['filename_base']}.nfo")
                     
                     url = xc.get_stream_url("movie", str(stream_id), ext)
                     
@@ -234,6 +220,7 @@ async def process_series(db: Session, xc: XtreamClient, fm: FileManager, subscri
     
     use_season_folders = settings.get("SERIES_USE_SEASON_FOLDERS", "true") == "true"
     include_series_name = settings.get("SERIES_INCLUDE_NAME_IN_FILENAME", "false") == "true"
+    use_category_folders = settings.get("SERIES_USE_CATEGORY_FOLDERS", "true") == "true"
 
     # Update status
     sync_state = db.query(SyncState).filter(
@@ -287,23 +274,18 @@ async def process_series(db: Session, xc: XtreamClient, fm: FileManager, subscri
                 to_delete.append(cached)
 
         # Deletions
+        # Deletions
         for series in to_delete:
             cat_name = cat_map.get(series.category_id, "Uncategorized")
-            safe_cat = fm.sanitize_name(cat_name)
-            safe_name = fm.sanitize_name(series.name)
+            target_info = fm.get_series_target_info(
+                {"name": series.name, "tmdb": series.tmdb_id},
+                cat_name, prefix_regex, format_date, clean_name, use_category_folders
+            )
             
-            # Check for TMDB folder if applicable
-            tmdb_id = series.tmdb_id
-            potential_paths = [
-                 f"{fm.output_dir}/{safe_cat}/{safe_name}",
-                 f"{fm.output_dir}/{safe_cat}/{safe_name} {{tmdb-{tmdb_id}}}" if tmdb_id else None
-            ]
-
-            for path in potential_paths:
-                if path and os.path.exists(path):
-                    shutil.rmtree(path)
+            if os.path.exists(target_info["series_dir"]):
+                shutil.rmtree(target_info["series_dir"])
             
-            await fm.delete_directory_if_empty(f"{fm.output_dir}/{safe_cat}")
+            await fm.delete_directory_if_empty(target_info["cat_dir"])
             db.delete(series)
 
         # Process Additions/Updates Parallel
@@ -336,14 +318,12 @@ async def process_series(db: Session, xc: XtreamClient, fm: FileManager, subscri
                          series['tmdb'] = tmdb_id # For NFO
 
                     cat_name = cat_map.get(cat_id, "Uncategorized")
-                    safe_cat = fm.sanitize_name(cat_name)
-                    safe_name = fm.sanitize_name(name)
+                    target_info = fm.get_series_target_info(series, cat_name, prefix_regex, format_date, clean_name, use_category_folders)
                     
-                    folder_name = safe_name
-                    if tmdb_id and str(tmdb_id) not in ['0', 'None', 'null', '']:
-                         folder_name = f"{safe_name} {{tmdb-{tmdb_id}}}"
-
-                    series_dir = f"{fm.output_dir}/{safe_cat}/{folder_name}"
+                    if use_category_folders:
+                        fm.ensure_directory(target_info["cat_dir"])
+                    
+                    series_dir = target_info["series_dir"]
                     fm.ensure_directory(series_dir)
                     
                     # Always create tvshow.nfo
@@ -384,7 +364,7 @@ async def process_series(db: Session, xc: XtreamClient, fm: FileManager, subscri
                                 safe_ep_title = fm.sanitize_name(title)
                             
                             if include_series_name:
-                                 filename_base = f"{safe_name} - {formatted_ep}"
+                                 filename_base = f"{target_info['safe_series_name']} - {formatted_ep}"
                             else:
                                  filename_base = formatted_ep
                                  

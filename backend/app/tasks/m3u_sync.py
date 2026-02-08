@@ -289,17 +289,18 @@ def sync_m3u_source_task(source_id: int, sync_types: list = None, force: bool = 
             if sel.selection_type == SelectionType.SERIES
         }
         
-        # Use custom directories if provided, otherwise use defaults
-        movies_base = source.movies_dir or f"{source.output_dir}/movies"
-        series_base = source.series_dir or f"{source.output_dir}/series"
+        use_category_folders = settings.get("SERIES_USE_CATEGORY_FOLDERS", "true") == "true"
         
         # CLEANUP PHASE: Remove directories for deselected groups
         movies_deleted = cleanup_deselected_groups(
-            movies_base, selected_movie_groups, CONTENT_TYPE_MOVIES, sync_types
+            source.movies_dir or source.output_dir, selected_movie_groups, CONTENT_TYPE_MOVIES, sync_types
         )
-        series_deleted = cleanup_deselected_groups(
-            series_base, selected_series_groups, CONTENT_TYPE_SERIES, sync_types
-        )
+        
+        series_deleted = 0
+        if use_category_folders:
+            series_deleted = cleanup_deselected_groups(
+                source.series_dir or source.output_dir, selected_series_groups, CONTENT_TYPE_SERIES, sync_types
+            )
         
         # FILE GENERATION PHASE
         movies_files_created = 0
@@ -325,21 +326,27 @@ def sync_m3u_source_task(source_id: int, sync_types: list = None, force: bool = 
                 if entry.entry_type == EntryType.MOVIE:
                     if group not in selected_movie_groups:
                         continue
-                    base_dir = movies_base
-                    content_type = CONTENT_TYPE_MOVIES
+                    # Movies always use categories: /output/movies/Category/MovieName.strm
+                    base_dir = source.movies_dir or f"{source.output_dir}/movies"
+                    safe_group = sanitize_name(group)
+                    safe_title = sanitize_name(entry.title)
+                    group_dir = Path(base_dir) / safe_group
                 elif entry.entry_type == EntryType.SERIES:
                     if group not in selected_series_groups:
                         continue
-                    base_dir = series_base
-                    content_type = CONTENT_TYPE_SERIES
+                    base_dir = source.series_dir or f"{source.output_dir}/series"
+                    safe_group = sanitize_name(group)
+                    safe_title = sanitize_name(entry.title)
+                    
+                    if use_category_folders:
+                        # /output/series/Category/SeriesName/
+                        group_dir = Path(base_dir) / safe_group / safe_title
+                    else:
+                        # /output/series/SeriesName/
+                        group_dir = Path(base_dir) / safe_title
                 else:
                     continue
                 
-                # Prepare data for NFO generation
-                safe_group = sanitize_name(group)
-                safe_title = sanitize_name(entry.title)
-                
-                group_dir = Path(base_dir) / content_type / safe_group
                 group_dir.mkdir(parents=True, exist_ok=True)
                 
                 strm_path = group_dir / f"{safe_title}{STRM_EXTENSION}"

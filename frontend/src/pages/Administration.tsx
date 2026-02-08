@@ -2,7 +2,10 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Trash2, AlertTriangle, Database, Settings } from 'lucide-react';
+import { Dialog } from "@/components/ui/dialog";
+import { Trash2, AlertTriangle, Database, Settings, Clock, Zap } from 'lucide-react';
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import api from '@/lib/api';
 
 export default function Administration() {
@@ -14,7 +17,25 @@ export default function Administration() {
     const [includeSeriesName, setIncludeSeriesName] = useState(false);
     const [parallelismMovies, setParallelismMovies] = useState(10);
     const [parallelismSeries, setParallelismSeries] = useState(5);
+    const [useCategoryFolders, setUseCategoryFolders] = useState(true);
     const [regexLoading, setRegexLoading] = useState(false);
+
+    // Download Orchestration State
+    const [downloadMode, setDownloadMode] = useState('parallel');
+    const [globalSpeedLimit, setGlobalSpeedLimit] = useState(0);
+    const [quietHoursEnabled, setQuietHoursEnabled] = useState(true);
+    const [quietHoursStart, setQuietHoursStart] = useState('00:00');
+    const [quietHoursEnd, setQuietHoursEnd] = useState('08:00');
+    const [maxRedirects, setMaxRedirects] = useState(10);
+    const [connectionTimeout, setConnectionTimeout] = useState(30);
+    const [downloadSettingsLoading, setDownloadSettingsLoading] = useState(false);
+
+    // Dialog state
+    const [dialogState, setDialogState] = useState<{
+        type: 'deleteFiles' | 'resetDb' | 'resetAll' | 'clearMovieCache' | 'clearSeriesCache' | null;
+        step: number;
+    }>({ type: null, step: 0 });
+    const [confirmationInput, setConfirmationInput] = useState('');
 
     // Load current settings on mount
     useEffect(() => {
@@ -28,6 +49,18 @@ export default function Administration() {
                 setIncludeSeriesName(response.data.SERIES_INCLUDE_NAME_IN_FILENAME === 'true'); // Default FALSE
                 setParallelismMovies(parseInt(response.data.SYNC_PARALLELISM_MOVIES) || 10);
                 setParallelismSeries(parseInt(response.data.SYNC_PARALLELISM_SERIES) || 5);
+                setParallelismSeries(parseInt(response.data.SYNC_PARALLELISM_SERIES) || 5);
+                setUseCategoryFolders(response.data.SERIES_USE_CATEGORY_FOLDERS !== 'false'); // Default TRUE
+
+                // Load Download Settings
+                const dlRes = await api.get('/config/downloads');
+                setDownloadMode(dlRes.data.download_mode || 'parallel');
+                setGlobalSpeedLimit(dlRes.data.global_speed_limit_kbps || 0);
+                setQuietHoursEnabled(dlRes.data.quiet_hours_enabled);
+                setQuietHoursStart(dlRes.data.quiet_hours_start || '00:00');
+                setQuietHoursEnd(dlRes.data.quiet_hours_end || '08:00');
+                setMaxRedirects(dlRes.data.max_redirects || 10);
+                setConnectionTimeout(dlRes.data.connection_timeout_seconds || 30);
             } catch (error) {
                 console.error('Failed to load settings', error);
             }
@@ -44,15 +77,37 @@ export default function Administration() {
                 CLEAN_NAME: cleanName,
                 SERIES_USE_SEASON_FOLDERS: useSeasonFolders,
                 SERIES_INCLUDE_NAME_IN_FILENAME: includeSeriesName,
+                SERIES_USE_CATEGORY_FOLDERS: useCategoryFolders,
                 SYNC_PARALLELISM_MOVIES: parallelismMovies,
                 SYNC_PARALLELISM_SERIES: parallelismSeries
             });
-            alert('NFO settings saved successfully!');
+            alert('Settings saved successfully!');
         } catch (error) {
             console.error('Failed to save settings', error);
             alert('Failed to save settings. Please check the logs.');
         } finally {
             setRegexLoading(false);
+        }
+    };
+
+    const saveDownloadSettings = async () => {
+        setDownloadSettingsLoading(true);
+        try {
+            await api.post('/config/downloads', {
+                download_mode: downloadMode,
+                global_speed_limit_kbps: globalSpeedLimit,
+                quiet_hours_enabled: quietHoursEnabled,
+                quiet_hours_start: quietHoursStart,
+                quiet_hours_end: quietHoursEnd,
+                max_redirects: maxRedirects,
+                connection_timeout_seconds: connectionTimeout
+            });
+            alert('Download settings saved successfully!');
+        } catch (error) {
+            console.error('Failed to save download settings', error);
+            alert('Failed to save download settings.');
+        } finally {
+            setDownloadSettingsLoading(false);
         }
     };
 
@@ -80,19 +135,7 @@ export default function Administration() {
                         <Button
                             variant="outline"
                             className="w-full border-orange-300 text-orange-700 hover:bg-orange-50 dark:border-orange-800 dark:text-orange-400 dark:hover:bg-orange-950"
-                            onClick={async () => {
-                                if (!confirm('Are you sure you want to delete all generated files? This cannot be undone.')) return;
-                                setLoading(true);
-                                try {
-                                    await api.post('/admin/delete-files');
-                                    alert('All generated files have been deleted successfully.');
-                                } catch (error) {
-                                    console.error('Failed to delete files', error);
-                                    alert('Failed to delete files. Please check the logs.');
-                                } finally {
-                                    setLoading(false);
-                                }
-                            }}
+                            onClick={() => setDialogState({ type: 'deleteFiles', step: 1 })}
                             disabled={loading}
                         >
                             <Trash2 className="w-4 h-4 mr-2" />
@@ -116,19 +159,7 @@ export default function Administration() {
                         <Button
                             variant="destructive"
                             className="w-full"
-                            onClick={async () => {
-                                if (!confirm('⚠️ WARNING: This will delete ALL data from the database!\n\nAre you absolutely sure?')) return;
-                                setLoading(true);
-                                try {
-                                    await api.post('/admin/reset-database');
-                                    alert('Database has been reset successfully.');
-                                } catch (error) {
-                                    console.error('Failed to reset database', error);
-                                    alert('Failed to reset database. Please check the logs.');
-                                } finally {
-                                    setLoading(false);
-                                }
-                            }}
+                            onClick={() => setDialogState({ type: 'resetDb', step: 1 })}
                             disabled={loading}
                         >
                             <Database className="w-4 h-4 mr-2" />
@@ -152,23 +183,7 @@ export default function Administration() {
                         <Button
                             variant="destructive"
                             className="w-full bg-red-700 hover:bg-red-800"
-                            onClick={async () => {
-                                if (!confirm('🚨 CRITICAL WARNING 🚨\n\nThis will DELETE ALL FILES and RESET THE DATABASE!\n\nThis action cannot be undone. Are you ABSOLUTELY SURE?')) return;
-                                if (!confirm('Final confirmation: Type YES in the prompt to continue') || !prompt('Type YES to confirm:')?.toUpperCase().includes('YES')) {
-                                    alert('Reset cancelled.');
-                                    return;
-                                }
-                                setLoading(true);
-                                try {
-                                    await api.post('/admin/reset-all');
-                                    alert('All data has been reset successfully.');
-                                } catch (error) {
-                                    console.error('Failed to reset all data', error);
-                                    alert('Failed to reset all data. Please check the logs.');
-                                } finally {
-                                    setLoading(false);
-                                }
-                            }}
+                            onClick={() => setDialogState({ type: 'resetAll', step: 1 })}
                             disabled={loading}
                         >
                             <AlertTriangle className="w-4 h-4 mr-2" />
@@ -177,6 +192,133 @@ export default function Administration() {
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Download Orchestration */}
+            <Card className="border-indigo-200 dark:border-indigo-900">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-indigo-700 dark:text-indigo-400">
+                        <Zap className="w-5 h-5" />
+                        Download Orchestration
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Mode & Limits */}
+                        <div className="space-y-4">
+                            <div className="space-y-2">
+                                <Label>Download Mode</Label>
+                                <select
+                                    value={downloadMode}
+                                    onChange={(e) => setDownloadMode(e.target.value)}
+                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    <option value="parallel">Parallel (Recommended)</option>
+                                    <option value="sequential">Sequential (One by one)</option>
+                                </select>
+                                <p className="text-xs text-muted-foreground">
+                                    Parallel downloads multiple files at once based on subscription limits. Sequential forces one global download at a time.
+                                </p>
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label>Global Speed Limit (KB/s)</Label>
+                                <Input
+                                    type="number"
+                                    value={globalSpeedLimit}
+                                    onChange={(e) => setGlobalSpeedLimit(parseInt(e.target.value) || 0)}
+                                    placeholder="0 (Unlimited)"
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    Set to 0 for unlimited speed. 1024 KB/s = 1 MB/s.
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Quiet Hours */}
+                        <div className="space-y-4 border-l pl-6">
+                            <div className="flex items-center space-x-2">
+                                <Switch
+                                    id="quiet-mode"
+                                    checked={quietHoursEnabled}
+                                    onCheckedChange={setQuietHoursEnabled}
+                                />
+                                <Label htmlFor="quiet-mode" className="flex items-center gap-2">
+                                    <Clock className="w-4 h-4" /> Quiet Hours (Pause/Slow)
+                                </Label>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label>Start Time</Label>
+                                    <Input
+                                        type="time"
+                                        value={quietHoursStart}
+                                        onChange={(e) => setQuietHoursStart(e.target.value)}
+                                        disabled={!quietHoursEnabled}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>End Time</Label>
+                                    <Input
+                                        type="time"
+                                        value={quietHoursEnd}
+                                        onChange={(e) => setQuietHoursEnd(e.target.value)}
+                                        disabled={!quietHoursEnabled}
+                                    />
+                                </div>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                                During these hours, downloads will respect the global speed limit or pause if configured.
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Connection Settings */}
+                    <div className="border-t pt-6 mt-6">
+                        <h3 className="text-sm font-semibold mb-4">Connection Settings</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label>Max Redirects</Label>
+                                <Input
+                                    type="number"
+                                    value={maxRedirects}
+                                    onChange={(e) => setMaxRedirects(parseInt(e.target.value) || 10)}
+                                    placeholder="10"
+                                    min="1"
+                                    max="50"
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    Maximum HTTP redirects to follow (prevents infinite loops).
+                                </p>
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label>Connection Timeout (seconds)</Label>
+                                <Input
+                                    type="number"
+                                    value={connectionTimeout}
+                                    onChange={(e) => setConnectionTimeout(parseInt(e.target.value) || 30)}
+                                    placeholder="30"
+                                    min="5"
+                                    max="300"
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    Timeout for establishing connections to download servers.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <Button
+                        onClick={saveDownloadSettings}
+                        disabled={downloadSettingsLoading}
+                        className="w-full bg-indigo-600 hover:bg-indigo-700"
+                    >
+                        <Zap className="w-4 h-4 mr-2" />
+                        Save Orchestration Settings
+                    </Button>
+                </CardContent>
+            </Card>
 
             {/* NFO Settings */}
             <div>
@@ -286,6 +428,24 @@ export default function Administration() {
                         <div className="flex items-start space-x-3">
                             <input
                                 type="checkbox"
+                                id="useCategoryFolders"
+                                checked={useCategoryFolders}
+                                onChange={(e) => setUseCategoryFolders(e.target.checked)}
+                                className="h-4 w-4 mt-1 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                            />
+                            <div>
+                                <label htmlFor="useCategoryFolders" className="text-sm font-medium leading-none cursor-pointer">
+                                    Use Category Folders
+                                </label>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    Organize series into folders by category (e.g. /series/Action/Name). Disable for direct structure (Jellyfin friendly).
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-start space-x-3">
+                            <input
+                                type="checkbox"
                                 id="includeSeriesName"
                                 checked={includeSeriesName}
                                 onChange={(e) => setIncludeSeriesName(e.target.checked)}
@@ -378,19 +538,7 @@ export default function Administration() {
                             <Button
                                 variant="outline"
                                 className="w-full border-yellow-300 text-yellow-700 hover:bg-yellow-50 dark:border-yellow-800 dark:text-yellow-400 dark:hover:bg-yellow-950"
-                                onClick={async () => {
-                                    if (!confirm('Clear movie cache? Next sync will re-fetch metadata.')) return;
-                                    setLoading(true);
-                                    try {
-                                        await api.post('/admin/clear-movie-cache');
-                                        alert('Movie cache cleared successfully.');
-                                    } catch (error) {
-                                        console.error('Failed to clear movie cache', error);
-                                        alert('Failed to clear movie cache.');
-                                    } finally {
-                                        setLoading(false);
-                                    }
-                                }}
+                                onClick={() => setDialogState({ type: 'clearMovieCache', step: 1 })}
                                 disabled={loading}
                             >
                                 Clear Movie Cache
@@ -412,19 +560,7 @@ export default function Administration() {
                             <Button
                                 variant="outline"
                                 className="w-full border-yellow-300 text-yellow-700 hover:bg-yellow-50 dark:border-yellow-800 dark:text-yellow-400 dark:hover:bg-yellow-950"
-                                onClick={async () => {
-                                    if (!confirm('Clear series cache? Next sync will re-fetch metadata.')) return;
-                                    setLoading(true);
-                                    try {
-                                        await api.post('/admin/clear-series-cache');
-                                        alert('Series cache cleared successfully.');
-                                    } catch (error) {
-                                        console.error('Failed to clear series cache', error);
-                                        alert('Failed to clear series cache.');
-                                    } finally {
-                                        setLoading(false);
-                                    }
-                                }}
+                                onClick={() => setDialogState({ type: 'clearSeriesCache', step: 1 })}
                                 disabled={loading}
                             >
                                 Clear Series Cache
@@ -433,6 +569,102 @@ export default function Administration() {
                     </Card>
                 </div>
             </div>
-        </div >
+
+            {/* Confirmation Dialogs */}
+            <Dialog
+                isOpen={!!dialogState.type}
+                onClose={() => {
+                    setDialogState({ type: null, step: 0 });
+                    setConfirmationInput('');
+                }}
+                title={
+                    dialogState.type === 'deleteFiles' ? 'Delete Generated Files' :
+                        dialogState.type === 'resetDb' ? 'Reset Database' :
+                            dialogState.type === 'resetAll' ? 'Reset Everything' :
+                                dialogState.type === 'clearMovieCache' ? 'Clear Movie Cache' :
+                                    'Clear Series Cache'
+                }
+            >
+                <div className="space-y-4">
+                    {/* Content based on type */}
+                    {dialogState.type === 'deleteFiles' && (
+                        <p>Are you sure you want to delete all generated .strm and .nfo files? This cannot be undone.</p>
+                    )}
+                    {dialogState.type === 'resetDb' && (
+                        <p className="text-red-600 font-bold">⚠️ WARNING: This will delete ALL data from the database! Subscriptions, settings, and monitoring state will be lost.</p>
+                    )}
+                    {dialogState.type === 'resetAll' && (
+                        <div className="space-y-4">
+                            <p className="text-red-600 font-extrabold">🚨 CRITICAL WARNING 🚨</p>
+                            <p>This will DELETE ALL generated files AND RESET the database. Your entire system will be wiped clean.</p>
+                            <div className="bg-red-50 p-3 rounded border border-red-200">
+                                <label className="block text-sm font-medium text-red-800 mb-2">
+                                    Type <span className="font-mono bg-white px-1 rounded">YES</span> to confirm:
+                                </label>
+                                <Input
+                                    value={confirmationInput}
+                                    onChange={(e) => setConfirmationInput(e.target.value)}
+                                    placeholder="YES"
+                                    className="border-red-300"
+                                />
+                            </div>
+                        </div>
+                    )}
+                    {dialogState.type === 'clearMovieCache' && (
+                        <p>This will force metadata to be re-fetched for all movies on the next sync. Files are not deleted.</p>
+                    )}
+                    {dialogState.type === 'clearSeriesCache' && (
+                        <p>This will force metadata to be re-fetched for all series/episodes on the next sync. Files are not deleted.</p>
+                    )}
+
+                    {/* Actions */}
+                    <div className="flex justify-end gap-2 mt-4">
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                setDialogState({ type: null, step: 0 });
+                                setConfirmationInput('');
+                            }}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            disabled={dialogState.type === 'resetAll' && confirmationInput !== 'YES'}
+                            onClick={async () => {
+                                setLoading(true);
+                                try {
+                                    if (dialogState.type === 'deleteFiles') {
+                                        await api.post('/admin/delete-files');
+                                        alert('All generated files have been deleted successfully.');
+                                    } else if (dialogState.type === 'resetDb') {
+                                        await api.post('/admin/reset-database');
+                                        alert('Database has been reset successfully.');
+                                    } else if (dialogState.type === 'resetAll') {
+                                        await api.post('/admin/reset-all');
+                                        alert('All data has been reset successfully.');
+                                    } else if (dialogState.type === 'clearMovieCache') {
+                                        await api.post('/admin/clear-movie-cache');
+                                        alert('Movie cache cleared successfully.');
+                                    } else if (dialogState.type === 'clearSeriesCache') {
+                                        await api.post('/admin/clear-series-cache');
+                                        alert('Series cache cleared successfully.');
+                                    }
+                                } catch (error) {
+                                    console.error(`Failed to execute ${dialogState.type}`, error);
+                                    alert('Operation failed. Please check the logs.');
+                                } finally {
+                                    setLoading(false);
+                                    setDialogState({ type: null, step: 0 });
+                                    setConfirmationInput('');
+                                }
+                            }}
+                        >
+                            {dialogState.type?.startsWith('reset') || dialogState.type === 'deleteFiles' ? 'Configrm Delete' : 'Confirm'}
+                        </Button>
+                    </div>
+                </div>
+            </Dialog>
+        </div>
     );
 }

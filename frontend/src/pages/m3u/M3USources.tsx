@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import api from "@/lib/api";
 import { formatDateTime } from '@/lib/utils';
 import { Plus, Upload, Trash2, FileText, Link as LinkIcon } from "lucide-react";
+import { Dialog } from "@/components/ui/dialog";
 
 interface M3USource {
     id: number;
@@ -23,6 +24,7 @@ export default function M3USources() {
     const [sources, setSources] = useState<M3USource[]>([]);
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState<'url' | 'file'>('url');
+    const [sourceToDelete, setSourceToDelete] = useState<{ id: number, name: string } | null>(null);
 
     // URL form
     const [urlForm, setUrlForm] = useState({
@@ -102,16 +104,19 @@ export default function M3USources() {
         }
     };
 
-    const handleDelete = async (sourceId: number, sourceName: string) => {
-        if (!confirm(`Are you sure you want to delete "${sourceName}"? This will remove all generated files.`)) {
-            return;
-        }
+    const confirmDelete = (sourceId: number, sourceName: string) => {
+        setSourceToDelete({ id: sourceId, name: sourceName });
+    };
+
+    const handleDelete = async () => {
+        if (!sourceToDelete) return;
 
         setLoading(true);
         try {
-            await api.delete(`/m3u-sources/${sourceId}`);
+            await api.delete(`/m3u-sources/${sourceToDelete.id}`);
             await fetchSources();
             alert('M3U source deleted successfully');
+            setSourceToDelete(null);
         } catch (error) {
             console.error("Failed to delete source", error);
             alert('Failed to delete source');
@@ -300,7 +305,7 @@ export default function M3USources() {
                                             <td className="p-3">
                                                 <div className="flex gap-2 justify-end">
                                                     <Button
-                                                        onClick={() => handleDelete(source.id, source.name)}
+                                                        onClick={() => confirmDelete(source.id, source.name)}
                                                         disabled={loading}
                                                         size="sm"
                                                         variant="destructive"
@@ -317,6 +322,29 @@ export default function M3USources() {
                     )}
                 </CardContent>
             </Card>
+
+            <Dialog
+                isOpen={!!sourceToDelete}
+                onClose={() => setSourceToDelete(null)}
+                title="Delete M3U Source"
+            >
+                <div className="space-y-4">
+                    <p>
+                        Are you sure you want to delete <strong>{sourceToDelete?.name}</strong>?
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                        This will remove the source configuration and all generated files.
+                    </p>
+                    <div className="flex justify-end gap-2">
+                        <Button variant="outline" onClick={() => setSourceToDelete(null)}>
+                            Cancel
+                        </Button>
+                        <Button variant="destructive" onClick={handleDelete} disabled={loading}>
+                            Delete
+                        </Button>
+                    </div>
+                </div>
+            </Dialog>
         </div>
     );
 }
