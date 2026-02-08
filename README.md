@@ -165,6 +165,10 @@ output/
 
 ## 📝 Version History
 
+### v3.0.1 (Hotfix)
+- 🔧 **Database Migration**: Added automated SQL migration system to handle schema updates for existing users (fixing `no such column` errors).
+- 🐳 **Docker Startup**: Improved `docker_start.sh` to apply migrations before starting the application.
+
 ### v3.0.0
 - ✨ **Introduced Download Module**: New system to browse and download media directly to your server.
 - ✨ **Auto-Download Monitoring**: Monitor movies, series, and **series categories** for new automatic downloads.

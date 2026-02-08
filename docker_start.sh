@@ -1,7 +1,10 @@
 #!/bin/bash
 set -e
 
-# Start Redis server in the background
+# Run database migrations
+echo "🔄 Running database migrations..."
+python3 /app/migrations/apply_migrations.py
+
 # Start Redis server in the background
 redis-server --dir /app --dbfilename dump.rdb --daemonize yes --pidfile /app/redis.pid --logfile /app/redis.log
 
