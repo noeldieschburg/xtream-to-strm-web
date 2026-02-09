@@ -58,6 +58,7 @@ export default function DownloadSelection() {
     const [monitoredItems, setMonitoredItems] = useState<MonitoredItem[]>([]);
     const [loading, setLoading] = useState(false);
     const [itemToUnmonitor, setItemToUnmonitor] = useState<{ id: number, title: string } | null>(null);
+    const [searchTerm, setSearchTerm] = useState("");
 
     // New state for series expansion
     const [expandedSeries, setExpandedSeries] = useState<Set<string>>(new Set());
@@ -68,6 +69,28 @@ export default function DownloadSelection() {
         fetchSubscriptions();
         fetchMonitoredItems();
     }, []);
+
+    // Derived filtered categories
+    const filteredCategories = Object.entries(categories).reduce((acc, [category, mediaList]) => {
+        const categoryMatches = category.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchingMedia = mediaList.filter(m =>
+            m.name.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+
+        if (categoryMatches || matchingMedia.length > 0) {
+            acc[category] = categoryMatches ? mediaList : matchingMedia;
+
+            // Auto-expand categories with matching items if searching
+            if (searchTerm && matchingMedia.length > 0 && !expandedCategories.has(category)) {
+                setExpandedCategories(prev => {
+                    const next = new Set(prev);
+                    next.add(category);
+                    return next;
+                });
+            }
+        }
+        return acc;
+    }, {} as CategoryData);
 
     // Clear selections when changing media type or subscription
     useEffect(() => {
@@ -397,6 +420,28 @@ export default function DownloadSelection() {
                         </div>
                     </div>
 
+                    {Object.keys(categories).length > 0 && (
+                        <div className="pt-2 border-t">
+                            <div className="relative">
+                                <input
+                                    type="text"
+                                    placeholder="Search movies or series..."
+                                    className="w-full p-2 pl-3 pr-10 border rounded bg-muted/20"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                                {searchTerm && (
+                                    <button
+                                        onClick={() => setSearchTerm("")}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                    >
+                                        ×
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     {(selectedMedia.size > 0 || selectedEpisodes.size > 0) && (
                         <div className="flex items-center justify-between p-4 bg-blue-50 rounded">
                             <span className="font-medium">{selectedMedia.size + selectedEpisodes.size} items selected</span>
@@ -421,7 +466,7 @@ export default function DownloadSelection() {
                         </p>
                     ) : (
                         <div className="space-y-2">
-                            {Object.entries(categories).map(([category, mediaList]) => {
+                            {Object.entries(filteredCategories).map(([category, mediaList]) => {
                                 const catId = mediaList[0]?.cat_id;
                                 const monitorType = mediaType === 'movies' ? 'category_movie' : 'category_series';
                                 const monitored = isMonitored(monitorType, catId);
