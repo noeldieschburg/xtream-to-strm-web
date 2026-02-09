@@ -208,3 +208,19 @@ class DownloadStatisticsResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class LiveConfigBase(BaseModel):
+    subscription_id: int
+    included_categories: list[str] = []
+    excluded_streams: list[str] = []
+
+class LiveConfigCreate(LiveConfigBase):
+    pass
+
+class LiveConfigUpdate(LiveConfigBase):
+    pass
+
+class LiveConfig(LiveConfigBase):
+    id: int
+
+    class Config:
+        from_attributes = True

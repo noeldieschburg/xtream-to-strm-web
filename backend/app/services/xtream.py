@@ -96,6 +96,27 @@ class XtreamClient:
     async def get_vod_info(self, vod_id: str) -> Dict:
         return await self._request("get_vod_info", vod_id=vod_id)
 
+    def get_vod_info_sync(self, vod_id: str) -> Dict:
+        return self._request_sync("get_vod_info", vod_id=vod_id)
+
+    async def get_live_categories(self) -> List[Dict]:
+        return await self._request("get_live_categories")
+
+    def get_live_categories_sync(self) -> List[Dict]:
+        return self._request_sync("get_live_categories")
+
+    async def get_live_streams(self, category_id: Optional[str] = None) -> List[Dict]:
+        kwargs = {}
+        if category_id:
+            kwargs["category_id"] = category_id
+        return await self._request("get_live_streams", **kwargs)
+
+    def get_live_streams_sync(self, category_id: Optional[str] = None) -> List[Dict]:
+        kwargs = {}
+        if category_id:
+            kwargs["category_id"] = category_id
+        return self._request_sync("get_live_streams", **kwargs)
+
     def get_stream_url(self, stream_type: str, stream_id: str, extension: str) -> str:
         # stream_type: "movie" or "series"
         return f"{self.base_url}/{stream_type}/{self.username}/{self.password}/{stream_id}.{extension}"

@@ -11,14 +11,22 @@ import os
 # Create tables first (for new installations)
 Base.metadata.create_all(bind=engine)
 
-# Self-healing schema: Ensure critical columns exist using SQLAlchemy native engine
+# Self-healing schema: Ensure critical columns exist and new tables are created
 def _ensure_schema_up_to_date():
     from sqlalchemy import inspect, text
-    import time
     
     print("🩺 Checking database schema...")
     try:
         inspector = inspect(engine)
+        existing_tables = inspector.get_table_names()
+        
+        # 1. Ensure 'live_stream_subs' table exists (since it's new)
+        if "live_stream_subs" not in existing_tables:
+            print("🔧 Table 'live_stream_subs' missing. Creating all tables to ensure it's added...")
+            Base.metadata.create_all(bind=engine)
+            print("✅ 'live_stream_subs' table created.")
+
+        # 2. Check 'subscriptions' columns
         columns = [c['name'] for c in inspector.get_columns("subscriptions")]
         
         required_migrations = [

@@ -10,7 +10,7 @@ Generate Jellyfin-compatible `.strm` and `.nfo` files for your media server
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Docker Hub](https://img.shields.io/docker/v/mourabena2ui/xtream-to-strm-web?label=Docker%20Hub&logo=docker)](https://hub.docker.com/r/mourabena2ui/xtream-to-strm-web)
 [![Docker Pulls](https://img.shields.io/docker/pulls/mourabena2ui/xtream-to-strm-web)](https://hub.docker.com/r/mourabena2ui/xtream-to-strm-web)
-[![Version](https://img.shields.io/badge/version-3.0.3-blue.svg)](https://github.com/mourabena2-ui/xtream-to-strm-web/releases)
+[![Version](https://img.shields.io/badge/version-3.1.0-blue.svg)](https://github.com/mourabena2-ui/xtream-to-strm-web/releases)
 
 </div>
 

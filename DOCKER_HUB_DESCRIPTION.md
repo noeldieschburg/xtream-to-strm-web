@@ -1,4 +1,4 @@
-# Xtream to STRM v3.0.4
+# Xtream to STRM v3.1.0
 - Jellyfin Media Management
 
 Transform your Xtream Codes subscriptions and M3U playlists into Jellyfin-compatible media files with this modern, production-ready web application.
@@ -10,6 +10,7 @@ Automatically generates `.strm` stream files and `.nfo` metadata files following
 ## ✨ Key Features
 
 - **Multi-Source Support**: Xtream Codes API and M3U playlists (URL or file upload)
+- **Live TV Module**: Dynamic M3U playlist generation and bouquet management
 - **Selective Sync**: Choose specific categories/groups for movies and series
 - **Rich Metadata**: NFO files with TMDB integration and configurable formatting
 - **Parallel Processing**: Configurable sync parallelism (Movies/Series) via Admin UI
@@ -95,4 +96,4 @@ MIT License - Free for personal and commercial use
 
 **Made with ❤️ for the Jellyfin community**
 
-v2.6.1 | [GitHub](https://github.com/mourabena2-ui/xtream-to-strm-web) | [Docker Hub](https://hub.docker.com/r/mourabena2ui/xtream-to-strm-web)
+v3.1.0 | [GitHub](https://github.com/mourabena2-ui/xtream-to-strm-web) | [Docker Hub](https://hub.docker.com/r/mourabena2ui/xtream-to-strm-web)

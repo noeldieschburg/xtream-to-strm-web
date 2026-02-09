@@ -22,6 +22,7 @@ import M3UScheduling from './pages/m3u/M3UScheduling';
 // Download Pages
 import Downloads from './pages/Downloads';
 import DownloadSelection from './pages/DownloadSelection';
+import LiveSelection from './pages/LiveSelection';
 import MonitoredList from './pages/MonitoredList';
 
 function Layout({ children }: { children: React.ReactNode }) {
@@ -133,7 +134,15 @@ function Layout({ children }: { children: React.ReactNode }) {
                         )}
                     </div>
 
-                    {/* M3U Group */}
+                    {/* Live TV Group */}
+                    <Link
+                        to="/live-selection"
+                        className={`flex items-center gap-3 px-3 py-2 rounded-md transition-colors ${location.pathname === '/live-selection' ? 'bg-accent text-accent-foreground' : 'hover:bg-accent hover:text-accent-foreground'
+                            }`}
+                    >
+                        <Radio size={20} />
+                        <span>Live Selection</span>
+                    </Link>
                     <div>
                         <button
                             onClick={() => setM3uExpanded(!m3uExpanded)}
@@ -270,6 +279,9 @@ function App() {
                 <Route path="/xtreamtv/subscriptions" element={<ProtectedRoute><Layout><XTVSubscriptions /></Layout></ProtectedRoute>} />
                 <Route path="/xtreamtv/selection" element={<ProtectedRoute><Layout><XTVSelection /></Layout></ProtectedRoute>} />
                 <Route path="/xtreamtv/scheduling" element={<ProtectedRoute><Layout><XTVScheduling /></Layout></ProtectedRoute>} />
+
+                {/* Live Selection */}
+                <Route path="/live-selection" element={<ProtectedRoute><Layout><LiveSelection /></Layout></ProtectedRoute>} />
 
                 {/* M3U */}
                 <Route path="/m3u/sources" element={<ProtectedRoute><Layout><M3USources /></Layout></ProtectedRoute>} />
