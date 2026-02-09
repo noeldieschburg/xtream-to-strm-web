@@ -4,8 +4,8 @@
 
 ![Xtream to STRM Logo](frontend/public/Xtreamm-app_Full_Logo.jpg)
 
-**A modern web application for managing Xtream Codes and M3U playlists**  
-Generate Jellyfin-compatible `.strm` and `.nfo` files for your media server
+**A complete media management platform for Xtream Codes and M3U playlists**  
+Generate `.strm` files, download content, and create dynamic M3U playlists for your media server
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Docker Hub](https://img.shields.io/docker/v/mourabena2ui/xtream-to-strm-web?label=Docker%20Hub&logo=docker)](https://hub.docker.com/r/mourabena2ui/xtream-to-strm-web)
@@ -18,15 +18,21 @@ Generate Jellyfin-compatible `.strm` and `.nfo` files for your media server
 
 ## 🌟 Overview
 
-Xtream to STRM is a complete, production-ready web application that transforms your Xtream Codes subscriptions and M3U playlists into **Jellyfin-compatible** media files. The application generates `.strm` stream files and `.nfo` metadata files following Jellyfin's naming conventions and folder structure, enabling seamless integration with your Jellyfin media server. Also compatible with Kodi and other media servers that support the same format.
+Xtream to STRM is a complete, production-ready media management platform that offers **four powerful modules**:
 
-Built with modern technologies, it provides an intuitive interface for managing your VOD content with advanced features like selective synchronization, intelligent metadata generation, and comprehensive administration tools.
+1. **STRM Generator** - Transform Xtream Codes and M3U playlists into Jellyfin/Kodi-compatible `.strm` and `.nfo` files
+2. **Download Manager** - Browse and download media directly to your server with intelligent queue management
+3. **Live TV Server** - Generate dynamic M3U playlists from your Xtream subscriptions for IPTV players
+4. **Auto-Monitoring** - Automatically detect and download new episodes from monitored series
+
+Built with modern technologies, it provides an intuitive interface for managing your entire media workflow with advanced features like selective synchronization, parallel processing, intelligent metadata generation, and comprehensive administration tools.
 
 ## ✨ Key Features
 
 ### 🎬 Multi-Source Support
 - **Xtream Codes**: Full support for Xtream API with multi-subscription management
 - **M3U Playlists**: Import from URLs or file uploads with group-based selection
+- **Live TV**: Dynamic M3U playlist generation for IPTV players (VLC, TiviMate, etc.)
 
 ### 🎯 Smart Synchronization
 - **Parallel Fetching**: High-performance sync with concurrent metadata fetching (async/await)
@@ -49,11 +55,25 @@ Built with modern technologies, it provides an intuitive interface for managing 
 - **Dark Mode**: Beautiful, comfortable viewing experience
 - **Intuitive Navigation**: Clean organization with logical menu structure
 
+### 📥 Download Manager
+- **Direct Downloads**: Browse and download movies/series directly to your server
+- **Smart Queue**: Intelligent download queue with configurable parallel limits
+- **Auto-Monitoring**: Watch for new episodes and download automatically
+- **Category Monitoring**: Monitor entire series categories for bulk downloads
+- **Progress Tracking**: Real-time download progress with speed and ETA
+
+### 📺 Live TV M3U Server (New in v3.1.0)
+- **Bouquet Selection**: Choose which Live TV categories to include
+- **Channel Filtering**: Exclude specific channels from your playlist
+- **Dynamic M3U**: Single URL that updates based on your selections
+- **IPTV Compatible**: Works with VLC, TiviMate, and other M3U players
+
 ### 🛠️ Advanced Administration
 - **Database Management**: Easy reset and cleanup operations
 - **File Management**: Bulk delete and reorganization tools
 - **NFO Settings**: Customize title formatting with regex patterns
 - **Statistics Dashboard**: Comprehensive overview of your content
+- **Real-Time Logs**: Stream application logs directly in the browser
 
 ## 🚀 Quick Start
 
@@ -124,7 +144,30 @@ docker-compose up -d
 
 Click **Sync Movies** or **Sync Series** to generate your files!
 
-### 4. Configure Your Media Server
+### 4. Download Content (Optional)
+
+**Browse and Download:**
+- Navigate to **Downloads** → **Media Selection**
+- Browse available movies and series
+- Add items to download queue
+- Monitor downloads in **Download Manager**
+
+**Auto-Monitoring:**
+- Go to **Downloads** → **Monitoring**
+- Add series or categories to watch
+- New episodes download automatically
+
+### 5. Live TV M3U (Optional)
+
+**Generate Your Playlist:**
+- Navigate to **Live TV** → **Live Selection**
+- Select your subscription
+- Click refresh to load bouquets
+- Choose categories to include
+- Copy or download your M3U URL
+- Add URL to your IPTV player
+
+### 6. Configure Your Media Server
 
 Point Jellyfin to the `/output` directory to scan your new content. The generated files follow Jellyfin's naming conventions for optimal recognition.
 
@@ -164,6 +207,14 @@ output/
 - **Containerization**: Docker (multi-stage build)
 
 ## 📝 Version History
+
+### v3.1.0 (Latest)
+- 📺 **Live TV Module**: New dedicated module for managing Live TV channels from Xtream subscriptions
+- 🎯 **Bouquet Management**: Select specific bouquets and exclude individual channels
+- 📡 **Dynamic M3U Server**: Generate personalized M3U playlists with a single URL
+- 🔧 **Pydantic Schemas**: Improved API serialization for better performance and reliability
+- 🛠️ **XtreamClient Enhancement**: Added async methods for Live TV categories and streams
+- 📱 **Live Selection UI**: New split-pane interface for managing bouquets and channels
 
 ### v3.0.4 (Hotfix)
 - 💉 **Engine-Level Schema Healing**: Replaced external SQL scripts with native SQLAlchemy inspection. The application now automatically detects and adds missing columns on startup using its internal engine.
