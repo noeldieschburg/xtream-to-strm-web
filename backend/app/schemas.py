@@ -13,6 +13,7 @@ class ConfigUpdate(BaseModel):
     FORMAT_DATE_IN_TITLE: Optional[bool] = None
     CLEAN_NAME: Optional[bool] = None
     SERIES_USE_SEASON_FOLDERS: Optional[bool] = None
+    SERIES_USE_CATEGORY_FOLDERS: Optional[bool] = None
     SERIES_INCLUDE_NAME_IN_FILENAME: Optional[bool] = None
     SYNC_PARALLELISM_MOVIES: Optional[int] = None
     SYNC_PARALLELISM_SERIES: Optional[int] = None
@@ -28,6 +29,7 @@ class ConfigResponse(BaseModel):
     FORMAT_DATE_IN_TITLE: Optional[bool] = None
     CLEAN_NAME: Optional[bool] = None
     SERIES_USE_SEASON_FOLDERS: Optional[bool] = None
+    SERIES_USE_CATEGORY_FOLDERS: Optional[bool] = None
     SERIES_INCLUDE_NAME_IN_FILENAME: Optional[bool] = None
     SYNC_PARALLELISM_MOVIES: Optional[int] = None
     SYNC_PARALLELISM_SERIES: Optional[int] = None

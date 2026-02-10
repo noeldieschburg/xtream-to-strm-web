@@ -61,6 +61,8 @@ def update_config(config: ConfigUpdate, db: Session = Depends(get_db)):
         updates["CLEAN_NAME"] = str(config.CLEAN_NAME).lower()
     if config.SERIES_USE_SEASON_FOLDERS is not None:
         updates["SERIES_USE_SEASON_FOLDERS"] = str(config.SERIES_USE_SEASON_FOLDERS).lower()
+    if config.SERIES_USE_CATEGORY_FOLDERS is not None:
+        updates["SERIES_USE_CATEGORY_FOLDERS"] = str(config.SERIES_USE_CATEGORY_FOLDERS).lower()
     if config.SERIES_INCLUDE_NAME_IN_FILENAME is not None:
         updates["SERIES_INCLUDE_NAME_IN_FILENAME"] = str(config.SERIES_INCLUDE_NAME_IN_FILENAME).lower()
     if config.SYNC_PARALLELISM_MOVIES is not None:
