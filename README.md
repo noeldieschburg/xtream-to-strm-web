@@ -10,7 +10,7 @@ Generate `.strm` files, download content, and create dynamic M3U playlists for y
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Docker Hub](https://img.shields.io/docker/v/mourabena2ui/xtream-to-strm-web?label=Docker%20Hub&logo=docker)](https://hub.docker.com/r/mourabena2ui/xtream-to-strm-web)
 [![Docker Pulls](https://img.shields.io/docker/pulls/mourabena2ui/xtream-to-strm-web)](https://hub.docker.com/r/mourabena2ui/xtream-to-strm-web)
-[![Version](https://img.shields.io/badge/version-3.1.0-blue.svg)](https://github.com/mourabena2-ui/xtream-to-strm-web/releases)
+[![Version](https://img.shields.io/badge/version-3.2.0-blue.svg)](https://github.com/mourabena2-ui/xtream-to-strm-web/releases)
 
 </div>
 
@@ -67,6 +67,13 @@ Built with modern technologies, it provides an intuitive interface for managing 
 - **Channel Filtering**: Exclude specific channels from your playlist
 - **Dynamic M3U**: Single URL that updates based on your selections
 - **IPTV Compatible**: Works with VLC, TiviMate, and other M3U players
+
+### 🔗 Jellyfin Integration
+- **Auto-Refresh**: Automatically trigger Jellyfin library scans after sync completes
+- **Library Selection**: Choose specific Movies and Series libraries to refresh
+- **Connection Test**: Verify Jellyfin connectivity before enabling
+- **Manual Refresh**: Trigger library scans on-demand from the UI
+- **Non-Blocking**: Jellyfin errors never affect sync operations
 
 ### 🛠️ Advanced Administration
 - **Database Management**: Easy reset and cleanup operations
@@ -167,7 +174,19 @@ Click **Sync Movies** or **Sync Series** to generate your files!
 - Copy or download your M3U URL
 - Add URL to your IPTV player
 
-### 6. Configure Your Media Server
+### 6. Jellyfin Integration (Optional)
+
+**Auto-refresh libraries after sync:**
+- Navigate to **XtreamTV** → **Scheduling**
+- In the **Jellyfin Integration** card:
+  - Enter your Jellyfin server URL (e.g., `http://jellyfin:8096`)
+  - Enter your API token (Dashboard → API Keys in Jellyfin)
+  - Click **Test** to verify connection
+  - Select your Movies and Series libraries from the dropdowns
+  - Enable **Auto-refresh after sync**
+- Use the green refresh buttons to manually trigger library scans
+
+### 7. Configure Your Media Server
 
 Point Jellyfin to the `/output` directory to scan your new content. The generated files follow Jellyfin's naming conventions for optimal recognition.
 
@@ -208,7 +227,14 @@ output/
 
 ## 📝 Version History
 
-### v3.1.0 (Latest)
+### v3.2.0 (Latest)
+- 🔗 **Jellyfin Integration**: Automatically trigger library scans after sync operations
+- 🎯 **Library Selection**: Choose specific Movies and Series libraries to refresh
+- 🧪 **Connection Test**: Verify Jellyfin connectivity with server info display
+- 🔄 **Manual Refresh**: On-demand library refresh buttons in the UI
+- 🎨 **Toast Notifications**: Modern toast messages replace browser alerts
+
+### v3.1.0
 - 📺 **Live TV Module**: New dedicated module for managing Live TV channels from Xtream subscriptions
 - 🎯 **Bouquet Management**: Select specific bouquets and exclude individual channels
 - 📡 **Dynamic M3U Server**: Generate personalized M3U playlists with a single URL
