@@ -45,12 +45,11 @@ export default function Administration() {
                 setPrefixRegex(response.data.PREFIX_REGEX || '^(?:[A-Za-z0-9.-]+_|[A-Za-z]{2,}\\s*-\\s*)');
                 setFormatDate(response.data.FORMAT_DATE_IN_TITLE === true);
                 setCleanName(response.data.CLEAN_NAME === true);
-                setUseSeasonFolders(response.data.SERIES_USE_SEASON_FOLDERS !== 'false'); // Default TRUE conversation
-                setIncludeSeriesName(response.data.SERIES_INCLUDE_NAME_IN_FILENAME === 'true'); // Default FALSE
-                setParallelismMovies(parseInt(response.data.SYNC_PARALLELISM_MOVIES) || 10);
-                setParallelismSeries(parseInt(response.data.SYNC_PARALLELISM_SERIES) || 5);
-                setParallelismSeries(parseInt(response.data.SYNC_PARALLELISM_SERIES) || 5);
-                setUseCategoryFolders(response.data.SERIES_USE_CATEGORY_FOLDERS !== 'false'); // Default TRUE
+                setUseSeasonFolders(response.data.SERIES_USE_SEASON_FOLDERS !== false); // Default TRUE
+                setIncludeSeriesName(response.data.SERIES_INCLUDE_NAME_IN_FILENAME === true); // Default FALSE
+                setParallelismMovies(response.data.SYNC_PARALLELISM_MOVIES || 10);
+                setParallelismSeries(response.data.SYNC_PARALLELISM_SERIES || 5);
+                setUseCategoryFolders(response.data.SERIES_USE_CATEGORY_FOLDERS !== false); // Default TRUE
 
                 // Load Download Settings
                 const dlRes = await api.get('/config/downloads');

@@ -36,6 +36,25 @@ def update_download_settings(settings_in: DownloadSettingsGlobalUpdate, db: Sess
 @router.get("/", response_model=ConfigResponse)
 def get_config(db: Session = Depends(get_db)):
     settings = {s.key: s.value for s in db.query(SettingsModel).all()}
+
+    # Convert string booleans to actual booleans for Pydantic
+    bool_fields = [
+        "FORMAT_DATE_IN_TITLE", "CLEAN_NAME", "SERIES_USE_SEASON_FOLDERS",
+        "SERIES_USE_CATEGORY_FOLDERS", "SERIES_INCLUDE_NAME_IN_FILENAME"
+    ]
+    for field in bool_fields:
+        if field in settings:
+            settings[field] = settings[field].lower() == "true"
+
+    # Convert string integers to actual integers
+    int_fields = ["SYNC_PARALLELISM_MOVIES", "SYNC_PARALLELISM_SERIES"]
+    for field in int_fields:
+        if field in settings:
+            try:
+                settings[field] = int(settings[field])
+            except (ValueError, TypeError):
+                pass
+
     return ConfigResponse(**settings)
 
 @router.post("/", response_model=ConfigResponse)
