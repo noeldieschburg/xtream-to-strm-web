@@ -17,6 +17,53 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
+
+def trigger_jellyfin_refresh(db: Session, library_type: str):
+    """
+    Trigger Jellyfin library refresh if configured.
+    library_type: "movies" or "series"
+
+    This function never raises exceptions - Jellyfin errors should not fail syncs.
+    """
+    from app.models.settings import SettingsModel
+    try:
+        settings = {s.key: s.value for s in db.query(SettingsModel).all()}
+
+        # Check if Jellyfin integration is enabled
+        if settings.get("JELLYFIN_REFRESH_ENABLED") != "true":
+            return
+
+        url = settings.get("JELLYFIN_URL")
+        token = settings.get("JELLYFIN_API_TOKEN")
+
+        if not url or not token:
+            logger.debug("Jellyfin not configured, skipping refresh")
+            return
+
+        # Get appropriate library ID
+        if library_type == "movies":
+            library_id = settings.get("JELLYFIN_MOVIES_LIBRARY_ID")
+        else:
+            library_id = settings.get("JELLYFIN_SERIES_LIBRARY_ID")
+
+        if not library_id:
+            logger.debug(f"No Jellyfin library configured for {library_type}")
+            return
+
+        from app.services.jellyfin import JellyfinClient
+        client = JellyfinClient(url, token)
+        success = client.refresh_library_sync(library_id)
+
+        if success:
+            logger.info(f"Jellyfin {library_type} library refresh triggered successfully")
+        else:
+            logger.warning(f"Jellyfin {library_type} library refresh failed")
+
+    except Exception as e:
+        # Never fail the sync due to Jellyfin issues
+        logger.error(f"Error triggering Jellyfin refresh for {library_type}: {e}")
+
+
 async def process_movies(db: Session, xc: XtreamClient, fm: FileManager, subscription_id: int):
     # Get settings
     from app.models.settings import SettingsModel
@@ -200,6 +247,9 @@ async def process_movies(db: Session, xc: XtreamClient, fm: FileManager, subscri
         sync_state.items_deleted = len(to_delete)
         sync_state.status = SyncStatus.SUCCESS
         db.commit()
+
+        # Trigger Jellyfin library refresh
+        trigger_jellyfin_refresh(db, "movies")
 
     except Exception as e:
         logger.exception("Error syncing movies")
@@ -418,6 +468,9 @@ async def process_series(db: Session, xc: XtreamClient, fm: FileManager, subscri
         sync_state.items_deleted = len(to_delete)
         sync_state.status = SyncStatus.SUCCESS
         db.commit()
+
+        # Trigger Jellyfin library refresh
+        trigger_jellyfin_refresh(db, "series")
 
     except Exception as e:
         logger.exception("Error syncing series")

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Clock, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, Loader2, Server, RefreshCw } from 'lucide-react';
+import { useToast } from "@/components/ui/toast";
 import api from '@/lib/api';
 import { formatDateTime } from '@/lib/utils';
 
@@ -28,6 +29,23 @@ interface ExecutionHistory {
     error_message: string | null;
 }
 
+interface JellyfinConfig {
+    url: string | null;
+    api_token_set: boolean;
+    movies_library_id: string | null;
+    movies_library_name: string | null;
+    series_library_id: string | null;
+    series_library_name: string | null;
+    refresh_enabled: boolean;
+    is_configured: boolean;
+}
+
+interface JellyfinLibrary {
+    id: string;
+    name: string;
+    collection_type: string | null;
+}
+
 const frequencyOptions = [
     { value: 'five_minutes', label: 'Every 5 Minutes' },
     { value: 'hourly', label: 'Every Hour' },
@@ -38,6 +56,7 @@ const frequencyOptions = [
 ];
 
 export default function XTVScheduling() {
+    const { toast } = useToast();
     const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
     const [selectedSubId, setSelectedSubId] = useState<number | null>(null);
     const [moviesConfig, setMoviesConfig] = useState<ScheduleConfig | null>(null);
@@ -45,8 +64,18 @@ export default function XTVScheduling() {
     const [history, setHistory] = useState<ExecutionHistory[]>([]);
     const [loading, setLoading] = useState(true);
 
+    // Jellyfin state
+    const [jellyfinConfig, setJellyfinConfig] = useState<JellyfinConfig | null>(null);
+    const [jellyfinLibraries, setJellyfinLibraries] = useState<JellyfinLibrary[]>([]);
+    const [jellyfinUrl, setJellyfinUrl] = useState('');
+    const [jellyfinToken, setJellyfinToken] = useState('');
+    const [jellyfinLoading, setJellyfinLoading] = useState(false);
+    const [jellyfinTestResult, setJellyfinTestResult] = useState<{ success: boolean; message: string } | null>(null);
+    const [refreshingLibrary, setRefreshingLibrary] = useState<'movies' | 'series' | null>(null);
+
     useEffect(() => {
         fetchSubscriptions();
+        fetchJellyfinConfig();
     }, []);
 
     useEffect(() => {
@@ -99,6 +128,95 @@ export default function XTVScheduling() {
             await fetchSchedules();
         } catch (error) {
             console.error('Error updating schedule:', error);
+        }
+    };
+
+    // Jellyfin functions
+    const fetchJellyfinConfig = async () => {
+        try {
+            const res = await api.get<JellyfinConfig>('/jellyfin/config');
+            setJellyfinConfig(res.data);
+            if (res.data.url) setJellyfinUrl(res.data.url);
+            if (res.data.is_configured) {
+                fetchJellyfinLibraries();
+            }
+        } catch (error) {
+            console.error('Error fetching Jellyfin config:', error);
+        }
+    };
+
+    const fetchJellyfinLibraries = async () => {
+        try {
+            const res = await api.get<{ libraries: JellyfinLibrary[]; error?: string }>('/jellyfin/libraries');
+            if (res.data.error) {
+                console.error('Jellyfin error:', res.data.error);
+            } else {
+                setJellyfinLibraries(res.data.libraries);
+            }
+        } catch (error) {
+            console.error('Error fetching Jellyfin libraries:', error);
+        }
+    };
+
+    const saveJellyfinConfig = async (updates: Partial<{ url: string; api_token: string; movies_library_id: string; series_library_id: string; refresh_enabled: boolean }>) => {
+        try {
+            const res = await api.post<JellyfinConfig>('/jellyfin/config', updates);
+            setJellyfinConfig(res.data);
+            toast.success('Jellyfin settings saved');
+        } catch (error) {
+            console.error('Error saving Jellyfin config:', error);
+            toast.error('Failed to save Jellyfin settings');
+        }
+    };
+
+    const testJellyfinConnection = async () => {
+        setJellyfinLoading(true);
+        setJellyfinTestResult(null);
+        try {
+            // Save URL and token first
+            await api.post('/jellyfin/config', { url: jellyfinUrl, api_token: jellyfinToken });
+            // Then test
+            const res = await api.post<{ success: boolean; message: string; server_name?: string; version?: string }>('/jellyfin/test');
+            setJellyfinTestResult(res.data);
+            if (res.data.success) {
+                toast.success(res.data.message);
+                fetchJellyfinConfig();
+                fetchJellyfinLibraries();
+            } else {
+                toast.error(res.data.message);
+            }
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Connection failed';
+            setJellyfinTestResult({ success: false, message });
+            toast.error(message);
+        } finally {
+            setJellyfinLoading(false);
+        }
+    };
+
+    const refreshJellyfinLibrary = async (type: 'movies' | 'series') => {
+        const libraryId = type === 'movies'
+            ? jellyfinConfig?.movies_library_id
+            : jellyfinConfig?.series_library_id;
+
+        if (!libraryId) {
+            toast.error(`No ${type} library selected`);
+            return;
+        }
+
+        setRefreshingLibrary(type);
+        try {
+            const res = await api.post<{ success: boolean; message: string }>(`/jellyfin/refresh/${libraryId}`);
+            if (res.data.success) {
+                toast.success(res.data.message);
+            } else {
+                toast.error(res.data.message);
+            }
+        } catch (error) {
+            console.error('Error refreshing Jellyfin library:', error);
+            toast.error('Failed to refresh Jellyfin library');
+        } finally {
+            setRefreshingLibrary(null);
         }
     };
 
@@ -276,6 +394,138 @@ export default function XTVScheduling() {
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Jellyfin Integration */}
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <Server className="w-5 h-5" />
+                        Jellyfin Integration
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    {/* Server Configuration */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Jellyfin Server URL</label>
+                            <input
+                                type="text"
+                                placeholder="http://jellyfin:8096"
+                                value={jellyfinUrl}
+                                onChange={(e) => setJellyfinUrl(e.target.value)}
+                                className="w-full border rounded-md px-3 py-2 text-sm"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">API Token</label>
+                            <div className="flex gap-2">
+                                <input
+                                    type="password"
+                                    placeholder={jellyfinConfig?.api_token_set ? '••••••••' : 'Enter API token'}
+                                    value={jellyfinToken}
+                                    onChange={(e) => setJellyfinToken(e.target.value)}
+                                    className="flex-1 border rounded-md px-3 py-2 text-sm"
+                                />
+                                <button
+                                    onClick={testJellyfinConnection}
+                                    disabled={jellyfinLoading || !jellyfinUrl}
+                                    className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 disabled:opacity-50"
+                                >
+                                    {jellyfinLoading ? 'Testing...' : 'Test'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Test Result */}
+                    {jellyfinTestResult && (
+                        <div className={`p-3 rounded-md text-sm ${jellyfinTestResult.success ? 'bg-green-500/10 text-green-600 border border-green-500/20' : 'bg-red-500/10 text-red-600 border border-red-500/20'}`}>
+                            {jellyfinTestResult.message}
+                        </div>
+                    )}
+
+                    {/* Library Selection */}
+                    {jellyfinConfig?.is_configured && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Movies Library</label>
+                                <div className="flex gap-2">
+                                    <select
+                                        value={jellyfinConfig?.movies_library_id || ''}
+                                        onChange={(e) => saveJellyfinConfig({ movies_library_id: e.target.value })}
+                                        className="flex-1 border rounded-md px-3 py-2 text-sm"
+                                    >
+                                        <option value="">-- Select Library --</option>
+                                        {jellyfinLibraries
+                                            .filter(lib => lib.collection_type === 'movies' || lib.collection_type === null)
+                                            .map(lib => (
+                                                <option key={lib.id} value={lib.id}>{lib.name}</option>
+                                            ))
+                                        }
+                                    </select>
+                                    <button
+                                        onClick={() => refreshJellyfinLibrary('movies')}
+                                        disabled={!jellyfinConfig?.movies_library_id || refreshingLibrary === 'movies'}
+                                        className="px-3 py-2 bg-green-600 text-white rounded-md text-sm hover:bg-green-700 disabled:opacity-50 flex items-center gap-1"
+                                        title="Refresh Movies Library"
+                                    >
+                                        <RefreshCw className={`w-4 h-4 ${refreshingLibrary === 'movies' ? 'animate-spin' : ''}`} />
+                                    </button>
+                                </div>
+                                {jellyfinConfig?.movies_library_name && (
+                                    <p className="text-xs text-muted-foreground">Current: {jellyfinConfig.movies_library_name}</p>
+                                )}
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Series Library</label>
+                                <div className="flex gap-2">
+                                    <select
+                                        value={jellyfinConfig?.series_library_id || ''}
+                                        onChange={(e) => saveJellyfinConfig({ series_library_id: e.target.value })}
+                                        className="flex-1 border rounded-md px-3 py-2 text-sm"
+                                    >
+                                        <option value="">-- Select Library --</option>
+                                        {jellyfinLibraries
+                                            .filter(lib => lib.collection_type === 'tvshows' || lib.collection_type === null)
+                                            .map(lib => (
+                                                <option key={lib.id} value={lib.id}>{lib.name}</option>
+                                            ))
+                                        }
+                                    </select>
+                                    <button
+                                        onClick={() => refreshJellyfinLibrary('series')}
+                                        disabled={!jellyfinConfig?.series_library_id || refreshingLibrary === 'series'}
+                                        className="px-3 py-2 bg-green-600 text-white rounded-md text-sm hover:bg-green-700 disabled:opacity-50 flex items-center gap-1"
+                                        title="Refresh Series Library"
+                                    >
+                                        <RefreshCw className={`w-4 h-4 ${refreshingLibrary === 'series' ? 'animate-spin' : ''}`} />
+                                    </button>
+                                </div>
+                                {jellyfinConfig?.series_library_name && (
+                                    <p className="text-xs text-muted-foreground">Current: {jellyfinConfig.series_library_name}</p>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Enable Toggle */}
+                    <div className="flex items-center justify-between pt-4 border-t">
+                        <div>
+                            <span className="text-sm font-medium">Auto-refresh after sync</span>
+                            <p className="text-xs text-muted-foreground">
+                                Automatically trigger Jellyfin library refresh when sync completes
+                            </p>
+                        </div>
+                        <input
+                            type="checkbox"
+                            checked={jellyfinConfig?.refresh_enabled || false}
+                            onChange={(e) => saveJellyfinConfig({ refresh_enabled: e.target.checked })}
+                            disabled={!jellyfinConfig?.is_configured}
+                            className="w-4 h-4"
+                        />
+                    </div>
+                </CardContent>
+            </Card>
 
             {/* Execution History */}
             <Card>

@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 class ConfigUpdate(BaseModel):
@@ -226,3 +226,41 @@ class LiveConfig(LiveConfigBase):
 
     class Config:
         from_attributes = True
+
+
+# Jellyfin Integration Schemas
+class JellyfinConfigUpdate(BaseModel):
+    url: Optional[str] = None
+    api_token: Optional[str] = None
+    movies_library_id: Optional[str] = None
+    series_library_id: Optional[str] = None
+    refresh_enabled: Optional[bool] = None
+
+
+class JellyfinConfigResponse(BaseModel):
+    url: Optional[str] = None
+    api_token_set: bool = False
+    movies_library_id: Optional[str] = None
+    movies_library_name: Optional[str] = None
+    series_library_id: Optional[str] = None
+    series_library_name: Optional[str] = None
+    refresh_enabled: bool = False
+    is_configured: bool = False
+
+
+class JellyfinLibrary(BaseModel):
+    id: str
+    name: str
+    collection_type: Optional[str] = None
+
+
+class JellyfinLibrariesResponse(BaseModel):
+    libraries: List[JellyfinLibrary] = []
+    error: Optional[str] = None
+
+
+class JellyfinTestResponse(BaseModel):
+    success: bool
+    message: str
+    server_name: Optional[str] = None
+    version: Optional[str] = None
