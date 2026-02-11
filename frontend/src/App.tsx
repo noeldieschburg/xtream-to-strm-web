@@ -23,6 +23,8 @@ import M3UScheduling from './pages/m3u/M3UScheduling';
 import Downloads from './pages/Downloads';
 import DownloadSelection from './pages/DownloadSelection';
 import LiveSelection from './pages/LiveSelection';
+import LivePlaylists from './pages/LivePlaylists';
+import LiveEPG from './pages/LiveEPG';
 import MonitoredList from './pages/MonitoredList';
 
 function Layout({ children }: { children: React.ReactNode }) {
@@ -136,12 +138,12 @@ function Layout({ children }: { children: React.ReactNode }) {
 
                     {/* Live TV Group */}
                     <Link
-                        to="/live-selection"
-                        className={`flex items-center gap-3 px-3 py-2 rounded-md transition-colors ${location.pathname === '/live-selection' ? 'bg-accent text-accent-foreground' : 'hover:bg-accent hover:text-accent-foreground'
+                        to="/live-playlists"
+                        className={`flex items-center gap-3 px-3 py-2 rounded-md transition-colors ${location.pathname === '/live-playlists' ? 'bg-accent text-accent-foreground' : 'hover:bg-accent hover:text-accent-foreground'
                             }`}
                     >
                         <Radio size={20} />
-                        <span>Live Selection</span>
+                        <span>Live Playlists</span>
                     </Link>
                     <div>
                         <button
@@ -254,7 +256,7 @@ function Layout({ children }: { children: React.ReactNode }) {
                 <div className="mt-auto pt-4 border-t border-border">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground px-3">
                         <Activity size={16} />
-                        <span>v3.0.4</span>
+                        <span>v3.7.0</span>
                     </div>
                 </div>
             </aside>
@@ -280,8 +282,10 @@ function App() {
                 <Route path="/xtreamtv/selection" element={<ProtectedRoute><Layout><XTVSelection /></Layout></ProtectedRoute>} />
                 <Route path="/xtreamtv/scheduling" element={<ProtectedRoute><Layout><XTVScheduling /></Layout></ProtectedRoute>} />
 
-                {/* Live Selection */}
+                {/* Live TV */}
+                <Route path="/live-playlists" element={<ProtectedRoute><Layout><LivePlaylists /></Layout></ProtectedRoute>} />
                 <Route path="/live-selection" element={<ProtectedRoute><Layout><LiveSelection /></Layout></ProtectedRoute>} />
+                <Route path="/live-epg" element={<ProtectedRoute><Layout><LiveEPG /></Layout></ProtectedRoute>} />
 
                 {/* M3U */}
                 <Route path="/m3u/sources" element={<ProtectedRoute><Layout><M3USources /></Layout></ProtectedRoute>} />

@@ -1,5 +1,5 @@
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, ConfigDict
+from typing import Optional, List
 from datetime import datetime
 
 class ConfigUpdate(BaseModel):
@@ -16,6 +16,8 @@ class ConfigUpdate(BaseModel):
     SERIES_INCLUDE_NAME_IN_FILENAME: Optional[bool] = None
     SYNC_PARALLELISM_MOVIES: Optional[int] = None
     SYNC_PARALLELISM_SERIES: Optional[int] = None
+    SERIES_USE_CATEGORY_FOLDERS: Optional[bool] = None
+    MOVIE_USE_CATEGORY_FOLDERS: Optional[bool] = None
 
 class ConfigResponse(BaseModel):
     XC_URL: Optional[str] = None
@@ -31,6 +33,8 @@ class ConfigResponse(BaseModel):
     SERIES_INCLUDE_NAME_IN_FILENAME: Optional[bool] = None
     SYNC_PARALLELISM_MOVIES: Optional[int] = None
     SYNC_PARALLELISM_SERIES: Optional[int] = None
+    SERIES_USE_CATEGORY_FOLDERS: Optional[bool] = None
+    MOVIE_USE_CATEGORY_FOLDERS: Optional[bool] = None
 
 class SyncStatusResponse(BaseModel):
     id: Optional[int] = None
@@ -224,3 +228,100 @@ class LiveConfig(LiveConfigBase):
 
     class Config:
         from_attributes = True
+
+# --- Live TV v2 Playlists ---
+
+class LivePlaylistChannelBase(BaseModel):
+    stream_id: str
+    custom_name: Optional[str] = None
+    order: int = 0
+    is_excluded: bool = False
+    epg_channel_id: Optional[str] = None
+
+class LivePlaylistChannelCreate(LivePlaylistChannelBase):
+    bouquet_id: int
+
+class LivePlaylistChannelUpdate(BaseModel):
+    custom_name: Optional[str] = None
+    order: Optional[int] = None
+    is_excluded: Optional[bool] = None
+    epg_channel_id: Optional[str] = None
+
+class LivePlaylistChannel(LivePlaylistChannelBase):
+    id: int
+    bouquet_id: int
+    model_config = ConfigDict(from_attributes=True)
+
+class LivePlaylistBouquetBase(BaseModel):
+    id: Optional[int] = None
+    category_id: Optional[str] = None
+    custom_name: Optional[str] = None
+    order: int = 0
+
+class LivePlaylistChannelMove(BaseModel):
+    new_bouquet_id: int
+    new_order: int
+
+class LivePlaylistBouquetCreate(LivePlaylistBouquetBase):
+    playlist_id: int
+
+class LivePlaylistBouquetUpdate(BaseModel):
+    custom_name: Optional[str] = None
+    order: Optional[int] = None
+
+class LivePlaylistBouquet(LivePlaylistBouquetBase):
+    id: int
+    playlist_id: int
+    channels: List[LivePlaylistChannel] = []
+    model_config = ConfigDict(from_attributes=True)
+
+class LivePlaylistBase(BaseModel):
+    subscription_id: int
+    name: str
+    description: Optional[str] = None
+
+class LivePlaylistCreate(LivePlaylistBase):
+    pass
+
+class LivePlaylistUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+class LivePlaylist(LivePlaylistBase):
+    id: int
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+class LivePlaylistDetail(LivePlaylist):
+    bouquets: List[LivePlaylistBouquet] = []
+    epg_sources: List["EPGSourceResponse"] = []
+    model_config = ConfigDict(from_attributes=True)
+
+# --- EPG Engine v3.3.0 ---
+
+class EPGSourceBase(BaseModel):
+    source_type: str  # "xtream", "url", "file"
+    source_url: Optional[str] = None
+    file_path: Optional[str] = None
+    priority: int = 0
+    is_active: bool = True
+
+class EPGSourceCreate(EPGSourceBase):
+    playlist_id: int
+
+class EPGSourceUpdate(BaseModel):
+    source_url: Optional[str] = None
+    file_path: Optional[str] = None
+    priority: Optional[int] = None
+    is_active: Optional[bool] = None
+
+class EPGSourceResponse(EPGSourceBase):
+    id: int
+    playlist_id: int
+    last_updated: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)
+
+class EPGMappingUpdate(BaseModel):
+    epg_channel_id: Optional[str] = None
+class LivePlaylistChannelBulkDelete(BaseModel):
+    channel_ids: List[int]

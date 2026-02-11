@@ -24,6 +24,7 @@ async def process_movies(db: Session, xc: XtreamClient, fm: FileManager, subscri
     prefix_regex = settings.get("PREFIX_REGEX")
     format_date = settings.get("FORMAT_DATE_IN_TITLE") == "true"
     clean_name = settings.get("CLEAN_NAME") == "true"
+    use_category_folders = settings.get("MOVIE_USE_CATEGORY_FOLDERS", "true") == "true"
 
     # Update status
     sync_state = db.query(SyncState).filter(
@@ -87,7 +88,7 @@ async def process_movies(db: Session, xc: XtreamClient, fm: FileManager, subscri
             cat_name = cat_map.get(movie.category_id, "Uncategorized")
             target_info = fm.get_movie_target_info(
                 {"name": movie.name, "tmdb": movie.tmdb_id}, 
-                cat_name, prefix_regex, format_date, clean_name
+                cat_name, prefix_regex, format_date, clean_name, use_category_folders
             )
             
             # 1. New Structure removal
@@ -137,7 +138,7 @@ async def process_movies(db: Session, xc: XtreamClient, fm: FileManager, subscri
                         pass
 
                     cat_name = cat_map.get(cat_id, "Uncategorized")
-                    target_info = fm.get_movie_target_info(movie, cat_name, prefix_regex, format_date, clean_name)
+                    target_info = fm.get_movie_target_info(movie, cat_name, prefix_regex, format_date, clean_name, use_category_folders)
                     
                     fm.ensure_directory(target_info["cat_dir"])
                     if target_info["target_dir"] != target_info["cat_dir"]:

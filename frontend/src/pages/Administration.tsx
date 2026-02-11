@@ -18,6 +18,7 @@ export default function Administration() {
     const [parallelismMovies, setParallelismMovies] = useState(10);
     const [parallelismSeries, setParallelismSeries] = useState(5);
     const [useCategoryFolders, setUseCategoryFolders] = useState(true);
+    const [useMovieCategoryFolders, setUseMovieCategoryFolders] = useState(true);
     const [regexLoading, setRegexLoading] = useState(false);
 
     // Download Orchestration State
@@ -45,12 +46,12 @@ export default function Administration() {
                 setPrefixRegex(response.data.PREFIX_REGEX || '^(?:[A-Za-z0-9.-]+_|[A-Za-z]{2,}\\s*-\\s*)');
                 setFormatDate(response.data.FORMAT_DATE_IN_TITLE === true);
                 setCleanName(response.data.CLEAN_NAME === true);
-                setUseSeasonFolders(response.data.SERIES_USE_SEASON_FOLDERS !== 'false'); // Default TRUE conversation
-                setIncludeSeriesName(response.data.SERIES_INCLUDE_NAME_IN_FILENAME === 'true'); // Default FALSE
+                setUseSeasonFolders(response.data.SERIES_USE_SEASON_FOLDERS !== false);
+                setIncludeSeriesName(response.data.SERIES_INCLUDE_NAME_IN_FILENAME === true);
                 setParallelismMovies(parseInt(response.data.SYNC_PARALLELISM_MOVIES) || 10);
                 setParallelismSeries(parseInt(response.data.SYNC_PARALLELISM_SERIES) || 5);
-                setParallelismSeries(parseInt(response.data.SYNC_PARALLELISM_SERIES) || 5);
-                setUseCategoryFolders(response.data.SERIES_USE_CATEGORY_FOLDERS !== 'false'); // Default TRUE
+                setUseCategoryFolders(response.data.SERIES_USE_CATEGORY_FOLDERS !== false);
+                setUseMovieCategoryFolders(response.data.MOVIE_USE_CATEGORY_FOLDERS !== false);
 
                 // Load Download Settings
                 const dlRes = await api.get('/config/downloads');
@@ -78,6 +79,7 @@ export default function Administration() {
                 SERIES_USE_SEASON_FOLDERS: useSeasonFolders,
                 SERIES_INCLUDE_NAME_IN_FILENAME: includeSeriesName,
                 SERIES_USE_CATEGORY_FOLDERS: useCategoryFolders,
+                MOVIE_USE_CATEGORY_FOLDERS: useMovieCategoryFolders,
                 SYNC_PARALLELISM_MOVIES: parallelismMovies,
                 SYNC_PARALLELISM_SERIES: parallelismSeries
             });
@@ -394,6 +396,45 @@ export default function Administration() {
                         >
                             <Settings className="w-4 h-4 mr-2" />
                             Save Settings
+                        </Button>
+                    </CardContent>
+                </Card>
+
+                {/* Movies Formatting Settings */}
+                <Card className="border-orange-200 dark:border-orange-900">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-orange-700 dark:text-orange-400">
+                            <Settings className="w-5 h-5" />
+                            Movies Formatting
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                        <div className="flex items-start space-x-3">
+                            <input
+                                type="checkbox"
+                                id="useMovieCategoryFolders"
+                                checked={useMovieCategoryFolders}
+                                onChange={(e) => setUseMovieCategoryFolders(e.target.checked)}
+                                className="h-4 w-4 mt-1 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                            />
+                            <div>
+                                <label htmlFor="useMovieCategoryFolders" className="text-sm font-medium leading-none cursor-pointer">
+                                    Use Category Folders
+                                </label>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    Organize movies into folders by category (e.g. /movies/Action/Name). Disable for direct structure.
+                                </p>
+                            </div>
+                        </div>
+
+                        <Button
+                            variant="default"
+                            className="w-full bg-orange-600 hover:bg-orange-700"
+                            onClick={saveNfoSettings}
+                            disabled={regexLoading}
+                        >
+                            <Settings className="w-4 h-4 mr-2" />
+                            Save Movies Settings
                         </Button>
                     </CardContent>
                 </Card>
