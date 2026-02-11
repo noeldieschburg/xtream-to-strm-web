@@ -6,9 +6,11 @@ import { Dialog } from "@/components/ui/dialog";
 import { Trash2, AlertTriangle, Database, Settings, Clock, Zap } from 'lucide-react';
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { useToast } from "@/components/ui/toast";
 import api from '@/lib/api';
 
 export default function Administration() {
+    const { toast } = useToast();
     const [loading, setLoading] = useState(false);
     const [prefixRegex, setPrefixRegex] = useState('');
     const [formatDate, setFormatDate] = useState(false);
@@ -80,10 +82,10 @@ export default function Administration() {
                 SYNC_PARALLELISM_MOVIES: parallelismMovies,
                 SYNC_PARALLELISM_SERIES: parallelismSeries
             });
-            alert('Settings saved successfully!');
+            toast.success('Settings saved successfully!');
         } catch (error) {
             console.error('Failed to save settings', error);
-            alert('Failed to save settings. Please check the logs.');
+            toast.error('Failed to save settings. Please check the logs.');
         } finally {
             setRegexLoading(false);
         }
@@ -101,10 +103,10 @@ export default function Administration() {
                 max_redirects: maxRedirects,
                 connection_timeout_seconds: connectionTimeout
             });
-            alert('Download settings saved successfully!');
+            toast.success('Download settings saved successfully!');
         } catch (error) {
             console.error('Failed to save download settings', error);
-            alert('Failed to save download settings.');
+            toast.error('Failed to save download settings.');
         } finally {
             setDownloadSettingsLoading(false);
         }
@@ -635,23 +637,23 @@ export default function Administration() {
                                 try {
                                     if (dialogState.type === 'deleteFiles') {
                                         await api.post('/admin/delete-files');
-                                        alert('All generated files have been deleted successfully.');
+                                        toast.success('All generated files have been deleted successfully.');
                                     } else if (dialogState.type === 'resetDb') {
                                         await api.post('/admin/reset-database');
-                                        alert('Database has been reset successfully.');
+                                        toast.success('Database has been reset successfully.');
                                     } else if (dialogState.type === 'resetAll') {
                                         await api.post('/admin/reset-all');
-                                        alert('All data has been reset successfully.');
+                                        toast.success('All data has been reset successfully.');
                                     } else if (dialogState.type === 'clearMovieCache') {
                                         await api.post('/admin/clear-movie-cache');
-                                        alert('Movie cache cleared successfully.');
+                                        toast.success('Movie cache cleared successfully.');
                                     } else if (dialogState.type === 'clearSeriesCache') {
                                         await api.post('/admin/clear-series-cache');
-                                        alert('Series cache cleared successfully.');
+                                        toast.success('Series cache cleared successfully.');
                                     }
                                 } catch (error) {
                                     console.error(`Failed to execute ${dialogState.type}`, error);
-                                    alert('Operation failed. Please check the logs.');
+                                    toast.error('Operation failed. Please check the logs.');
                                 } finally {
                                     setLoading(false);
                                     setDialogState({ type: null, step: 0 });
