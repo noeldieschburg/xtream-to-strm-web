@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Save, Download, Link as LinkIcon, Loader2, RefreshCw } from 'lucide-react';
+import { useToast } from "@/components/ui/toast";
 import api from '@/lib/api';
 
 interface Category {
@@ -39,6 +40,7 @@ interface LiveConfig {
 }
 
 export default function LiveSelection() {
+    const { toast } = useToast();
     const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
     const [selectedSubscription, setSelectedSubscription] = useState<number | null>(null);
     const [categories, setCategories] = useState<Category[]>([]);
@@ -212,9 +214,30 @@ export default function LiveSelection() {
         return `${window.location.origin}/api/v1/live/playlist.m3u?subscription_id=${selectedSubscription}`;
     };
 
-    const copyToClipboard = () => {
-        navigator.clipboard.writeText(generateM3UUrl());
-        alert("M3U URL copied to clipboard");
+    const copyToClipboard = async () => {
+        const url = generateM3UUrl();
+        try {
+            // Try modern clipboard API first (requires HTTPS or localhost)
+            await navigator.clipboard.writeText(url);
+            toast.success("M3U URL copied to clipboard");
+        } catch {
+            // Fallback for non-secure contexts (HTTP)
+            const textArea = document.createElement("textarea");
+            textArea.value = url;
+            textArea.style.position = "fixed";
+            textArea.style.left = "-999999px";
+            textArea.style.top = "-999999px";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                toast.success("M3U URL copied to clipboard");
+            } catch {
+                toast.error("Failed to copy URL");
+            }
+            document.body.removeChild(textArea);
+        }
     };
 
     const downloadM3U = () => {
