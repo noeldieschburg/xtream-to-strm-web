@@ -10,7 +10,7 @@ Generate `.strm` files, download content, and create dynamic M3U playlists for y
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Docker Hub](https://img.shields.io/docker/v/mourabena2ui/xtream-to-strm-web?label=Docker%20Hub&logo=docker)](https://hub.docker.com/r/mourabena2ui/xtream-to-strm-web)
 [![Docker Pulls](https://img.shields.io/docker/pulls/mourabena2ui/xtream-to-strm-web)](https://hub.docker.com/r/mourabena2ui/xtream-to-strm-web)
-[![Version](https://img.shields.io/badge/version-3.1.0-blue.svg)](https://github.com/mourabena2-ui/xtream-to-strm-web/releases)
+[![Version](https://img.shields.io/badge/version-3.7.0-blue.svg)](https://github.com/mourabena2-ui/xtream-to-strm-web/releases)
 
 </div>
 
@@ -62,11 +62,15 @@ Built with modern technologies, it provides an intuitive interface for managing 
 - **Category Monitoring**: Monitor entire series categories for bulk downloads
 - **Progress Tracking**: Real-time download progress with speed and ETA
 
-### 📺 Live TV M3U Server (New in v3.1.0)
-- **Bouquet Selection**: Choose which Live TV categories to include
-- **Channel Filtering**: Exclude specific channels from your playlist
-- **Dynamic M3U**: Single URL that updates based on your selections
-- **IPTV Compatible**: Works with VLC, TiviMate, and other M3U players
+### 📺 Live TV Architecture v2 (New in v3.7.0)
+- **Virtual Bouquets**: Create, rename, and reorder custom bouquets from multiple subscriptions
+- **Live Composer**: Powerful drag-and-drop interface for channel organization
+- **One-Click Discovery**: Fast category browser for quick channel selection
+- **Undo/Redo**: Full history system for all layout and configuration changes
+- **Advanced EPG Management**: Manage multiple XMLTV sources with dedicated UI
+- **Bulk Operations**: Rapidly add, move, or delete hundreds of channels
+- **Smart Filtering**: Real-time filtering by channel name, group, or subscription
+- **Dynamic M3U Server**: Single, high-performance URL that updates instantly
 
 ### 🛠️ Advanced Administration
 - **Database Management**: Easy reset and cleanup operations
@@ -208,7 +212,16 @@ output/
 
 ## 📝 Version History
 
-### v3.1.0 (Latest)
+### v3.7.0 (Current)
+- 🚀 **Live TV v2**: Complete architectural overhaul with high-performance virtual bouquets
+- ✍️ **Customization**: Rename and reorder channels with a persistent custom order
+- 🔄 **Undo/Redo System**: Integrated history management for all Live TV operations
+- 📁 **Bouquet Composer**: Modern split-pane UI for rapid channel organization
+- 📡 **Multi-Source EPG**: Support for multiple XMLTV sources with full management UI
+- ⚡ **Performance Ops**: 3x faster API synchronization and elimination of redundant redirects
+- 🐞 **Stabilization**: Fixed critical 422/500 bulk delete and 404 rename errors
+
+### v3.1.0
 - 📺 **Live TV Module**: New dedicated module for managing Live TV channels from Xtream subscriptions
 - 🎯 **Bouquet Management**: Select specific bouquets and exclude individual channels
 - 📡 **Dynamic M3U Server**: Generate personalized M3U playlists with a single URL

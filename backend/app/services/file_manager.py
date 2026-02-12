@@ -63,7 +63,7 @@ class FileManager:
             
         return title.strip()
 
-    def get_movie_target_info(self, movie_data: dict, cat_name: str, prefix_regex: Optional[str] = None, format_date: bool = False, clean_name: bool = False) -> dict:
+    def get_movie_target_info(self, movie_data: dict, cat_name: str, prefix_regex: Optional[str] = None, format_date: bool = False, clean_name: bool = False, use_category_folders: bool = True) -> dict:
         """Determine target directory and filename for a movie"""
         name = movie_data.get('name', 'Unknown')
         o_name = movie_data.get('o_name')
@@ -78,12 +78,17 @@ class FileManager:
         
         cat_dir = os.path.join(self.output_dir, safe_cat)
         
+        if use_category_folders:
+            base_parent_dir = cat_dir
+        else:
+            base_parent_dir = self.output_dir
+
         if tmdb_id and str(tmdb_id) not in ['0', 'None', 'null', '']:
             folder_name = f"{safe_title} {{tmdb-{tmdb_id}}}"
-            target_dir = os.path.join(cat_dir, folder_name)
+            target_dir = os.path.join(base_parent_dir, folder_name)
             filename_base = folder_name
         else:
-            target_dir = cat_dir
+            target_dir = base_parent_dir
             filename_base = safe_title
             
         return {

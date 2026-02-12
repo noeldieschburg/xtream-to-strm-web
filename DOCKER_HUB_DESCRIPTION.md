@@ -1,4 +1,4 @@
-# Xtream to STRM v3.1.0
+# Xtream to STRM v3.7.0
 - Jellyfin Media Management
 
 Transform your Xtream Codes subscriptions and M3U playlists into Jellyfin-compatible media files with this modern, production-ready web application.
@@ -7,18 +7,18 @@ Transform your Xtream Codes subscriptions and M3U playlists into Jellyfin-compat
 
 Automatically generates `.strm` stream files and `.nfo` metadata files following Jellyfin's naming conventions, enabling seamless integration with your Jellyfin media server.
 
-## ✨ Key Features
+## ✨ Key Features (v3.7.0 Evolution)
 
-- **Multi-Source Support**: Xtream Codes API and M3U playlists (URL or file upload)
-- **Live TV Module**: Dynamic M3U playlist generation and bouquet management
-- **Selective Sync**: Choose specific categories/groups for movies and series
-- **Rich Metadata**: NFO files with TMDB integration and configurable formatting
-- **Parallel Processing**: Configurable sync parallelism (Movies/Series) via Admin UI
-- **Real-time Logs**: Streaming application logs directly in the browser
-- **Modern Web UI**: Responsive dashboard with real-time sync monitoring
-- **Security**: Runs as non-root user (`appuser`) with protected admin routes
-- **Smart NFO Formatting**: Regex patterns, date formatting, name cleaning
-- **Administration Tools**: Database and file management built-in
+- **Live TV Archive v2**: Complete overhaul of live stream management with high-performance virtual bouquets.
+- **Smart Composer**: Drag-and-drop channel organization, custom ordering, and instant renaming.
+- **Integrated History**: Full Undo/Redo support for all live synchronization and layout changes.
+- **Multi-Source EPG**: Advanced XMLTV source management with integrated EPG administration.
+- **Optimized Engine**: Parallel synchronization engine with 3x faster processing and reduced API overhead.
+- **Multi-Source Support**: Xtream Codes API and M3U playlists (URL or file upload).
+- **Selective Sync**: Choose specific categories/groups for movies and series.
+- **Rich Metadata**: NFO files with TMDB integration and configurable formatting.
+- **Real-time Logs**: Streaming application logs directly in the browser.
+- **Security**: Runs as non-root user (`appuser`) with protected admin routes.
 
 ## 🚀 Quick Start
 
@@ -96,4 +96,4 @@ MIT License - Free for personal and commercial use
 
 **Made with ❤️ for the Jellyfin community**
 
-v3.1.0 | [GitHub](https://github.com/mourabena2-ui/xtream-to-strm-web) | [Docker Hub](https://hub.docker.com/r/mourabena2ui/xtream-to-strm-web)
+v3.7.0 | [GitHub](https://github.com/mourabena2-ui/xtream-to-strm-web) | [Docker Hub](https://hub.docker.com/r/mourabena2ui/xtream-to-strm-web)

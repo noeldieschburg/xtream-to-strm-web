@@ -1,7 +1,7 @@
 {
     "name": "xtream-to-strm-frontend",
     "private": true,
-    "version": "3.1.0",
+    "version": "3.7.0",
     "type": "module",
     "scripts": {
         "dev": "vite",
@@ -10,6 +10,9 @@
         "preview": "vite preview"
     },
     "dependencies": {
+        "@dnd-kit/core": "^6.3.1",
+        "@dnd-kit/sortable": "^10.0.0",
+        "@dnd-kit/utilities": "^3.2.2",
         "axios": "^1.6.7",
         "clsx": "^2.1.0",
         "lucide-react": "^0.330.0",

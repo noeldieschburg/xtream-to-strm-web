@@ -88,6 +88,10 @@ def update_config(config: ConfigUpdate, db: Session = Depends(get_db)):
         updates["SYNC_PARALLELISM_MOVIES"] = str(config.SYNC_PARALLELISM_MOVIES)
     if config.SYNC_PARALLELISM_SERIES is not None:
         updates["SYNC_PARALLELISM_SERIES"] = str(config.SYNC_PARALLELISM_SERIES)
+    if config.SERIES_USE_CATEGORY_FOLDERS is not None:
+        updates["SERIES_USE_CATEGORY_FOLDERS"] = str(config.SERIES_USE_CATEGORY_FOLDERS).lower()
+    if config.MOVIE_USE_CATEGORY_FOLDERS is not None:
+        updates["MOVIE_USE_CATEGORY_FOLDERS"] = str(config.MOVIE_USE_CATEGORY_FOLDERS).lower()
     
     for key, value in updates.items():
         setting = db.query(SettingsModel).filter(SettingsModel.key == key).first()
