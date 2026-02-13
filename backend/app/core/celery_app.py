@@ -26,3 +26,4 @@ celery_app.conf.timezone = settings.TIMEZONE
 from app.tasks import sync  # noqa
 from app.tasks import m3u_sync  # noqa
 from app.tasks import downloads  # noqa
+from app.tasks import plex_sync  # noqa

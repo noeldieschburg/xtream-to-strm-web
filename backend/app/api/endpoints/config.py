@@ -92,7 +92,11 @@ def update_config(config: ConfigUpdate, db: Session = Depends(get_db)):
         updates["SERIES_USE_CATEGORY_FOLDERS"] = str(config.SERIES_USE_CATEGORY_FOLDERS).lower()
     if config.MOVIE_USE_CATEGORY_FOLDERS is not None:
         updates["MOVIE_USE_CATEGORY_FOLDERS"] = str(config.MOVIE_USE_CATEGORY_FOLDERS).lower()
-    
+    if config.PLEX_PROXY_BASE_URL is not None:
+        updates["PLEX_PROXY_BASE_URL"] = config.PLEX_PROXY_BASE_URL
+    if config.PLEX_SHARED_KEY is not None:
+        updates["PLEX_SHARED_KEY"] = config.PLEX_SHARED_KEY
+
     for key, value in updates.items():
         setting = db.query(SettingsModel).filter(SettingsModel.key == key).first()
         if not setting:

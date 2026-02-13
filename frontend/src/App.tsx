@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Settings, FileText, Activity, Tv, Radio, Download, ChevronDown, ChevronRight, Menu, X, LogOut } from 'lucide-react';
+import { LayoutDashboard, Settings, FileText, Activity, Tv, Radio, Download, ChevronDown, ChevronRight, Menu, X, LogOut, Server } from 'lucide-react';
 import Login from './pages/Login';
 import ProtectedRoute from './components/ProtectedRoute';
 import { useState, useEffect } from 'react';
@@ -19,6 +19,11 @@ import M3USources from './pages/m3u/M3USources';
 import M3USelection from './pages/m3u/M3USelection';
 import M3UScheduling from './pages/m3u/M3UScheduling';
 
+// Plex Pages
+import PlexAccounts from './pages/plex/PlexAccounts';
+import PlexServers from './pages/plex/PlexServers';
+import PlexSelection from './pages/plex/PlexSelection';
+
 // Download Pages
 import Downloads from './pages/Downloads';
 import DownloadSelection from './pages/DownloadSelection';
@@ -31,6 +36,7 @@ function Layout({ children }: { children: React.ReactNode }) {
     const location = useLocation();
     const [xtreamExpanded, setXtreamExpanded] = useState(true);
     const [m3uExpanded, setM3uExpanded] = useState(true);
+    const [plexExpanded, setPlexExpanded] = useState(true);
     const [downloadsExpanded, setDownloadsExpanded] = useState(true);
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const navigate = useNavigate();
@@ -42,6 +48,7 @@ function Layout({ children }: { children: React.ReactNode }) {
 
     const isXtreamActive = location.pathname.startsWith('/xtreamtv');
     const isM3UActive = location.pathname.startsWith('/m3u');
+    const isPlexActive = location.pathname.startsWith('/plex');
     const isDownloadsActive = location.pathname.startsWith('/downloads');
 
     // Close sidebar when route changes on mobile
@@ -184,6 +191,46 @@ function Layout({ children }: { children: React.ReactNode }) {
                         )}
                     </div>
 
+                    {/* Plex Group */}
+                    <div>
+                        <button
+                            onClick={() => setPlexExpanded(!plexExpanded)}
+                            className={`w-full flex items-center justify-between gap-3 px-3 py-2 rounded-md transition-colors ${isPlexActive ? 'bg-accent/50 text-accent-foreground' : 'hover:bg-accent hover:text-accent-foreground'
+                                }`}
+                        >
+                            <div className="flex items-center gap-3">
+                                <Server size={20} />
+                                <span>Plex</span>
+                            </div>
+                            {plexExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                        </button>
+                        {plexExpanded && (
+                            <div className="ml-6 mt-1 space-y-1">
+                                <Link
+                                    to="/plex/accounts"
+                                    className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${location.pathname === '/plex/accounts' ? 'bg-accent text-accent-foreground' : 'hover:bg-accent hover:text-accent-foreground'
+                                        }`}
+                                >
+                                    <span>Accounts</span>
+                                </Link>
+                                <Link
+                                    to="/plex/servers"
+                                    className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${location.pathname === '/plex/servers' ? 'bg-accent text-accent-foreground' : 'hover:bg-accent hover:text-accent-foreground'
+                                        }`}
+                                >
+                                    <span>Servers</span>
+                                </Link>
+                                <Link
+                                    to="/plex/selection"
+                                    className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${location.pathname === '/plex/selection' ? 'bg-accent text-accent-foreground' : 'hover:bg-accent hover:text-accent-foreground'
+                                        }`}
+                                >
+                                    <span>Library Selection</span>
+                                </Link>
+                            </div>
+                        )}
+                    </div>
+
                     {/* Downloads Group */}
                     <div>
                         <button
@@ -291,6 +338,11 @@ function App() {
                 <Route path="/m3u/sources" element={<ProtectedRoute><Layout><M3USources /></Layout></ProtectedRoute>} />
                 <Route path="/m3u/selection" element={<ProtectedRoute><Layout><M3USelection /></Layout></ProtectedRoute>} />
                 <Route path="/m3u/scheduling" element={<ProtectedRoute><Layout><M3UScheduling /></Layout></ProtectedRoute>} />
+
+                {/* Plex */}
+                <Route path="/plex/accounts" element={<ProtectedRoute><Layout><PlexAccounts /></Layout></ProtectedRoute>} />
+                <Route path="/plex/servers" element={<ProtectedRoute><Layout><PlexServers /></Layout></ProtectedRoute>} />
+                <Route path="/plex/selection" element={<ProtectedRoute><Layout><PlexSelection /></Layout></ProtectedRoute>} />
 
                 {/* Downloads */}
                 <Route path="/downloads/selection" element={<ProtectedRoute><Layout><DownloadSelection /></Layout></ProtectedRoute>} />

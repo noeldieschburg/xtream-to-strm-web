@@ -19,6 +19,8 @@ class ConfigUpdate(BaseModel):
     SYNC_PARALLELISM_SERIES: Optional[int] = None
     SERIES_USE_CATEGORY_FOLDERS: Optional[bool] = None
     MOVIE_USE_CATEGORY_FOLDERS: Optional[bool] = None
+    PLEX_PROXY_BASE_URL: Optional[str] = None
+    PLEX_SHARED_KEY: Optional[str] = None
 
 class ConfigResponse(BaseModel):
     XC_URL: Optional[str] = None
@@ -37,6 +39,8 @@ class ConfigResponse(BaseModel):
     SYNC_PARALLELISM_SERIES: Optional[int] = None
     SERIES_USE_CATEGORY_FOLDERS: Optional[bool] = None
     MOVIE_USE_CATEGORY_FOLDERS: Optional[bool] = None
+    PLEX_PROXY_BASE_URL: Optional[str] = None
+    PLEX_SHARED_KEY: Optional[str] = None
 
 class SyncStatusResponse(BaseModel):
     id: Optional[int] = None
@@ -367,3 +371,109 @@ class EPGMappingUpdate(BaseModel):
 
 class LivePlaylistChannelBulkDelete(BaseModel):
     channel_ids: List[int]
+
+
+# --- Plex Integration Schemas ---
+
+class PlexLoginRequest(BaseModel):
+    """Request to test Plex.tv login credentials."""
+    username: str
+    password: str
+
+
+class PlexLoginResponse(BaseModel):
+    """Response from Plex.tv login attempt."""
+    success: bool
+    message: str
+    auth_token: Optional[str] = None
+    username: Optional[str] = None
+
+
+class PlexAccountBase(BaseModel):
+    """Base schema for Plex account."""
+    name: str
+    username: str
+    output_base_dir: str = "/output/plex"
+
+
+class PlexAccountCreate(PlexAccountBase):
+    """Schema for creating a Plex account (requires password for login)."""
+    password: str
+
+
+class PlexAccountResponse(PlexAccountBase):
+    """Response schema for Plex account."""
+    id: int
+    is_active: bool
+
+    class Config:
+        from_attributes = True
+
+
+class PlexServerBase(BaseModel):
+    """Base schema for Plex server."""
+    server_id: str
+    name: str
+    uri: str
+    is_owned: bool
+    is_selected: bool = False
+
+
+class PlexServerResponse(PlexServerBase):
+    """Response schema for Plex server."""
+    id: int
+    account_id: int
+    movies_dir: str
+    series_dir: str
+    last_sync: Optional[datetime] = None
+    version: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class PlexServerUpdate(BaseModel):
+    """Schema for updating Plex server settings."""
+    is_selected: Optional[bool] = None
+    movies_dir: Optional[str] = None
+    series_dir: Optional[str] = None
+
+
+class PlexLibraryBase(BaseModel):
+    """Base schema for Plex library."""
+    library_key: str
+    title: str
+    type: str  # "movie" or "show"
+    item_count: int = 0
+
+
+class PlexLibraryResponse(PlexLibraryBase):
+    """Response schema for Plex library."""
+    id: int
+    server_id: int
+    is_selected: bool
+    last_sync: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class PlexLibrarySelection(BaseModel):
+    """Schema for updating library selection."""
+    library_ids: List[int]
+
+
+class PlexSyncStatusResponse(BaseModel):
+    """Response schema for Plex sync status."""
+    id: Optional[int] = None
+    server_id: int
+    type: str
+    last_sync: Optional[datetime] = None
+    status: str
+    items_added: int
+    items_deleted: int
+    error_message: Optional[str] = None
+    task_id: Optional[str] = None
+
+    class Config:
+        from_attributes = True

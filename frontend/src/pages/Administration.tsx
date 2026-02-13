@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog } from "@/components/ui/dialog";
-import { Trash2, AlertTriangle, Database, Settings, Clock, Zap } from 'lucide-react';
+import { Trash2, AlertTriangle, Database, Settings, Clock, Zap, Server } from 'lucide-react';
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/toast";
@@ -33,6 +33,11 @@ export default function Administration() {
     const [connectionTimeout, setConnectionTimeout] = useState(30);
     const [downloadSettingsLoading, setDownloadSettingsLoading] = useState(false);
 
+    // Plex Settings State
+    const [plexProxyBaseUrl, setPlexProxyBaseUrl] = useState('http://localhost:8000');
+    const [plexSharedKey, setPlexSharedKey] = useState('');
+    const [plexSettingsLoading, setPlexSettingsLoading] = useState(false);
+
     // Dialog state
     const [dialogState, setDialogState] = useState<{
         type: 'deleteFiles' | 'resetDb' | 'resetAll' | 'clearMovieCache' | 'clearSeriesCache' | null;
@@ -54,6 +59,8 @@ export default function Administration() {
                 setParallelismSeries(parseInt(response.data.SYNC_PARALLELISM_SERIES) || 5);
                 setUseCategoryFolders(response.data.SERIES_USE_CATEGORY_FOLDERS !== false);
                 setUseMovieCategoryFolders(response.data.MOVIE_USE_CATEGORY_FOLDERS !== false);
+                setPlexProxyBaseUrl(response.data.PLEX_PROXY_BASE_URL || 'http://localhost:8000');
+                setPlexSharedKey(response.data.PLEX_SHARED_KEY || '');
 
                 // Load Download Settings
                 const dlRes = await api.get('/config/downloads');
@@ -91,6 +98,22 @@ export default function Administration() {
             toast.error('Failed to save settings. Please check the logs.');
         } finally {
             setRegexLoading(false);
+        }
+    };
+
+    const savePlexSettings = async () => {
+        setPlexSettingsLoading(true);
+        try {
+            await api.post('/config', {
+                PLEX_PROXY_BASE_URL: plexProxyBaseUrl,
+                PLEX_SHARED_KEY: plexSharedKey
+            });
+            toast.success('Plex settings saved successfully!');
+        } catch (error) {
+            console.error('Failed to save Plex settings', error);
+            toast.error('Failed to save Plex settings.');
+        } finally {
+            setPlexSettingsLoading(false);
         }
     };
 
@@ -558,6 +581,61 @@ export default function Administration() {
                         >
                             <Settings className="w-4 h-4 mr-2" />
                             Save Performance
+                        </Button>
+                    </CardContent>
+                </Card>
+
+                {/* Plex Settings */}
+                <Card className="border-green-200 dark:border-green-900">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-green-700 dark:text-green-400">
+                            <Server className="w-5 h-5" />
+                            Plex Settings
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Proxy Base URL</label>
+                            <Input
+                                type="text"
+                                value={plexProxyBaseUrl}
+                                onChange={(e) => setPlexProxyBaseUrl(e.target.value)}
+                                placeholder="http://192.168.1.100:8000"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                Base URL for Plex proxy streaming. Use the IP/hostname accessible by your media server (Jellyfin).
+                                Example: <code className="bg-muted px-1 py-0.5 rounded">http://192.168.1.100</code>
+                            </p>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Shared Key (Authentication)</label>
+                            <Input
+                                type="password"
+                                value={plexSharedKey}
+                                onChange={(e) => setPlexSharedKey(e.target.value)}
+                                placeholder="Enter a secret key to protect the proxy"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                Optional secret key to protect the Plex proxy endpoint. Leave empty to disable authentication.
+                            </p>
+                            <div className="bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded p-3 mt-2">
+                                <p className="text-xs text-yellow-700 dark:text-yellow-400">
+                                    <AlertTriangle className="w-3 h-3 inline mr-1" />
+                                    <strong>Warning:</strong> If you change this key, you must re-run the Plex sync to update all STRM files with the new key.
+                                    Use the <a href="/plex/selection" className="underline hover:text-yellow-900 dark:hover:text-yellow-300">Plex Selection page</a> to trigger a new sync.
+                                </p>
+                            </div>
+                        </div>
+
+                        <Button
+                            variant="default"
+                            className="w-full bg-green-600 hover:bg-green-700"
+                            onClick={savePlexSettings}
+                            disabled={plexSettingsLoading}
+                        >
+                            <Server className="w-4 h-4 mr-2" />
+                            Save Plex Settings
                         </Button>
                     </CardContent>
                 </Card>

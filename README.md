@@ -10,7 +10,7 @@ Generate `.strm` files, download content, and create dynamic M3U playlists for y
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Docker Hub](https://img.shields.io/docker/v/mourabena2ui/xtream-to-strm-web?label=Docker%20Hub&logo=docker)](https://hub.docker.com/r/mourabena2ui/xtream-to-strm-web)
 [![Docker Pulls](https://img.shields.io/docker/pulls/mourabena2ui/xtream-to-strm-web)](https://hub.docker.com/r/mourabena2ui/xtream-to-strm-web)
-[![Version](https://img.shields.io/badge/version-3.7.0-blue.svg)](https://github.com/mourabena2-ui/xtream-to-strm-web/releases)
+[![Version](https://img.shields.io/badge/version-3.8.0-blue.svg)](https://github.com/mourabena2-ui/xtream-to-strm-web/releases)
 
 </div>
 
@@ -18,12 +18,13 @@ Generate `.strm` files, download content, and create dynamic M3U playlists for y
 
 ## 🌟 Overview
 
-Xtream to STRM is a complete, production-ready media management platform that offers **four powerful modules**:
+Xtream to STRM is a complete, production-ready media management platform that offers **five powerful modules**:
 
 1. **STRM Generator** - Transform Xtream Codes and M3U playlists into Jellyfin/Kodi-compatible `.strm` and `.nfo` files
 2. **Download Manager** - Browse and download media directly to your server with intelligent queue management
 3. **Live TV Server** - Generate dynamic M3U playlists from your Xtream subscriptions for IPTV players
 4. **Auto-Monitoring** - Automatically detect and download new episodes from monitored series
+5. **Plex Integration** - Sync Plex.tv libraries to STRM files, including shared server support
 
 Built with modern technologies, it provides an intuitive interface for managing your entire media workflow with advanced features like selective synchronization, parallel processing, intelligent metadata generation, and comprehensive administration tools.
 
@@ -71,6 +72,15 @@ Built with modern technologies, it provides an intuitive interface for managing 
 - **Bulk Operations**: Rapidly add, move, or delete hundreds of channels
 - **Smart Filtering**: Real-time filtering by channel name, group, or subscription
 - **Dynamic M3U Server**: Single, high-performance URL that updates instantly
+
+### 🟠 Plex.tv Integration (New)
+- **Multi-Account Support**: Connect multiple Plex.tv accounts
+- **Shared Server Support**: Works with servers you don't own (transcoding URLs)
+- **Library Selection**: Choose specific Movie and Show libraries to sync
+- **Secure Proxy**: Built-in proxy endpoint that hides Plex tokens from STRM files
+- **Metadata Extraction**: TMDB/IMDB IDs, genres, actors, ratings from Plex
+- **NFO Generation**: Full metadata files compatible with Jellyfin/Kodi
+- **Configurable Output**: Customize output directories per server
 
 ### 🛠️ Advanced Administration
 - **Database Management**: Easy reset and cleanup operations
@@ -171,7 +181,32 @@ Click **Sync Movies** or **Sync Series** to generate your files!
 - Copy or download your M3U URL
 - Add URL to your IPTV player
 
-### 6. Configure Your Media Server
+### 6. Plex.tv Integration (Optional)
+
+**Connect Your Plex Account:**
+- Navigate to **Plex** → **Accounts**
+- Enter your Plex.tv username and password
+- Click **Add Account** to authenticate
+
+**Configure Server:**
+- Go to **Plex** → **Servers**
+- Select your account to view available servers (including shared servers)
+- Configure output directories for movies and series
+
+**Sync Libraries:**
+- Go to **Plex** → **Selection**
+- Click **Sync Libraries** to fetch available libraries from your server
+- Select the Movie and Show libraries you want to sync
+- Click **Sync Movies** or **Sync Series** to generate STRM/NFO files
+
+**Configure Proxy (Recommended):**
+- Go to **Administration** → **Plex Settings**
+- Set **Proxy Base URL** to an IP/hostname accessible by Jellyfin (not localhost)
+- Optionally set a **Shared Key** to protect the proxy endpoint
+
+> **Note:** Plex integration uses a proxy endpoint to hide authentication tokens from STRM files. This is essential for shared servers where direct file access is blocked.
+
+### 7. Configure Your Media Server
 
 Point Jellyfin to the `/output` directory to scan your new content. The generated files follow Jellyfin's naming conventions for optimal recognition.
 
@@ -189,6 +224,8 @@ Access these settings in **Administration** → **NFO Settings**
 
 ## 📁 Generated File Structure
 
+### Xtream Codes / M3U
+
 ```
 output/
 ├── movies/
@@ -203,16 +240,44 @@ output/
         └── tvshow.nfo
 ```
 
+### Plex Integration
+
+```
+output/plex/
+└── ServerName/
+    ├── movies/
+    │   └── LibraryName/                    # If library folders enabled
+    │       └── Movie Name (2024) {tmdb-123}/
+    │           ├── Movie Name (2024) {tmdb-123}.strm
+    │           └── Movie Name (2024) {tmdb-123}.nfo
+    └── series/
+        └── LibraryName/
+            └── Series Name (2020) {tmdb-456}/
+                ├── tvshow.nfo
+                └── Season 01/
+                    ├── S01E01 - Episode Title.strm
+                    └── S01E01 - Episode Title.nfo
+```
+
 ## 🔧 Technology Stack
 
 - **Backend**: Python 3.11, FastAPI, SQLAlchemy, Celery
 - **Frontend**: React 18, TypeScript, Vite, TailwindCSS
 - **Infrastructure**: Redis, SQLite
+- **Integrations**: Plex API (python-plexapi), Jellyfin API
 - **Containerization**: Docker (multi-stage build)
 
 ## 📝 Version History
 
-### v3.7.0 (Current)
+### v3.8.0 (Current)
+- 🟠 **Plex.tv Integration**: Full support for Plex libraries including shared servers
+- 🔐 **Secure Proxy**: Built-in proxy endpoint to hide Plex tokens from STRM files
+- 📚 **Multi-Account**: Connect multiple Plex.tv accounts with independent server management
+- 🎬 **Library Selection**: Choose specific Movie/Show libraries to sync
+- 📝 **Plex Metadata**: Extract TMDB/IMDB IDs, genres, actors from Plex server
+- ⚙️ **Plex Settings**: Configurable proxy URL and shared key authentication
+
+### v3.7.0
 - 🚀 **Live TV v2**: Complete architectural overhaul with high-performance virtual bouquets
 - ✍️ **Customization**: Rename and reorder channels with a persistent custom order
 - 🔄 **Undo/Redo System**: Integrated history management for all Live TV operations
