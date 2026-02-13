@@ -512,6 +512,9 @@ def sync_movies_task(subscription_id: int, execution_id: int = None):
 
         asyncio.run(process_movies(db, xc, fm, subscription_id))
 
+        # Refresh session to get updated sync_state values
+        db.expire_all()
+
         # Update execution record on success
         if execution:
             execution.status = ExecutionStatus.SUCCESS
@@ -568,6 +571,9 @@ def sync_series_task(subscription_id: int, execution_id: int = None):
         fm = FileManager(sub.series_dir)
 
         asyncio.run(process_series(db, xc, fm, subscription_id))
+
+        # Refresh session to get updated sync_state values
+        db.expire_all()
 
         # Update execution record on success
         if execution:

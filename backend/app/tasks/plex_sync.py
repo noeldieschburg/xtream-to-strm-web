@@ -620,6 +620,9 @@ def sync_plex_movies_task(server_id: int, execution_id: int = None):
 
         asyncio.run(process_plex_movies(db, client, plex_server, fm, server_id))
 
+        # Refresh session to get updated sync_state values
+        db.expire_all()
+
         # Update execution record on success
         if execution:
             execution.status = PlexExecutionStatus.SUCCESS
@@ -709,6 +712,9 @@ def sync_plex_series_task(server_id: int, execution_id: int = None):
         fm = FileManager(server.series_dir)
 
         asyncio.run(process_plex_series(db, client, plex_server, fm, server_id))
+
+        # Refresh session to get updated sync_state values
+        db.expire_all()
 
         # Update execution record on success
         if execution:
