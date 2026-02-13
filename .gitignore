@@ -32,7 +32,9 @@ frontend/dist/
 frontend/.vite/
 
 # IDE
+.vscode
 .vscode/
+.idea
 .idea/
 *.swp
 *.swo
@@ -69,3 +71,17 @@ dump.rdb
 CLAUDE.md
 test_plex_url.py
 test_plex_url.php
+
+# Claude Code
+.claude/
+.mcp.json
+
+# Shell config files (symlinked from home)
+.bash_profile
+.bashrc
+.profile
+.zprofile
+.zshrc
+.gitconfig
+.gitmodules
+.ripgreprc
