@@ -9,6 +9,10 @@ from app.models.m3u_entry import M3UEntry, EntryType
 from app.models.sync_state import SyncState
 from app.models.schedule import Schedule
 from app.models.cache import MovieCache, SeriesCache
+from app.models.plex_account import PlexAccount
+from app.models.plex_server import PlexServer
+from app.models.plex_cache import PlexMovieCache, PlexSeriesCache
+from app.models.plex_sync_state import PlexSyncState
 from datetime import datetime, timedelta
 import logging
 
@@ -24,20 +28,28 @@ def get_dashboard_stats(db: Session = Depends(get_db)) -> Dict[str, Any]:
     # Source statistics
     xtream_total = db.query(Subscription).count()
     xtream_active = db.query(Subscription).filter(Subscription.is_active == True).count()
-    
+
     m3u_total = db.query(M3USource).count()
     m3u_active = db.query(M3USource).filter(M3USource.is_active == True).count()
-    
+
+    # Plex source statistics
+    plex_servers_total = db.query(PlexServer).count()
+    plex_servers_active = db.query(PlexServer).filter(PlexServer.is_selected == True).count()
+
     # Content statistics from M3U entries
     m3u_movies = db.query(M3UEntry).filter(M3UEntry.entry_type == EntryType.MOVIE).count()
     m3u_series = db.query(M3UEntry).filter(M3UEntry.entry_type == EntryType.SERIES).count()
-    
+
     # Content statistics from Xtream Cache
     xtream_movies = db.query(MovieCache).count()
     xtream_series = db.query(SeriesCache).count()
-    
-    movies_count = m3u_movies + xtream_movies
-    series_count = m3u_series + xtream_series
+
+    # Content statistics from Plex Cache
+    plex_movies = db.query(PlexMovieCache).count()
+    plex_series = db.query(PlexSeriesCache).count()
+
+    movies_count = m3u_movies + xtream_movies + plex_movies
+    series_count = m3u_series + xtream_series + plex_series
     
     # Sync status
     recent_syncs = db.query(SyncState).order_by(
@@ -70,11 +82,12 @@ def get_dashboard_stats(db: Session = Depends(get_db)) -> Dict[str, Any]:
     
     return {
         "sources": {
-            "total": xtream_total + m3u_total,
+            "total": xtream_total + m3u_total + plex_servers_total,
             "xtream": xtream_total,
             "m3u": m3u_total,
-            "active": xtream_active + m3u_active,
-            "inactive": (xtream_total - xtream_active) + (m3u_total - m3u_active)
+            "plex": plex_servers_total,
+            "active": xtream_active + m3u_active + plex_servers_active,
+            "inactive": (xtream_total - xtream_active) + (m3u_total - m3u_active) + (plex_servers_total - plex_servers_active)
         },
         "total_content": {
             "movies": movies_count,
@@ -227,5 +240,24 @@ def get_content_by_source(db: Session = Depends(get_db)) -> List[Dict[str, Any]]
             "series": series,
             "total": movies + series
         })
-    
+
+    # Plex servers
+    plex_servers = db.query(PlexServer).all()
+    for server in plex_servers:
+        movies = db.query(PlexMovieCache).filter(
+            PlexMovieCache.server_id == server.id
+        ).count()
+
+        series = db.query(PlexSeriesCache).filter(
+            PlexSeriesCache.server_id == server.id
+        ).count()
+
+        result.append({
+            "source_name": server.name,
+            "source_type": "plex",
+            "movies": movies,
+            "series": series,
+            "total": movies + series
+        })
+
     return result
