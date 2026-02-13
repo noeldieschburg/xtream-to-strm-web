@@ -53,20 +53,34 @@ async def get_sync_history(
 
     # Xtream executions
     if source_type is None or source_type == "xtream":
-        xtream_query = db.query(ScheduleExecution, Schedule, Subscription).join(
-            Schedule, ScheduleExecution.schedule_id == Schedule.id
-        ).join(
-            Subscription, Schedule.subscription_id == Subscription.id
-        )
-
-        if sync_type:
-            xtream_query = xtream_query.filter(Schedule.type == sync_type)
-
-        xtream_executions = xtream_query.order_by(
+        # Query all executions (both scheduled and manual)
+        xtream_executions = db.query(ScheduleExecution).order_by(
             ScheduleExecution.started_at.desc()
         ).all()
 
-        for exec_row, schedule, subscription in xtream_executions:
+        for exec_row in xtream_executions:
+            # Get subscription name - from schedule or direct subscription_id
+            subscription_name = "Unknown"
+            exec_sync_type = exec_row.sync_type
+
+            if exec_row.schedule_id:
+                # Scheduled sync - get info from schedule
+                schedule = db.query(Schedule).filter(Schedule.id == exec_row.schedule_id).first()
+                if schedule:
+                    subscription = db.query(Subscription).filter(Subscription.id == schedule.subscription_id).first()
+                    if subscription:
+                        subscription_name = subscription.name
+                    exec_sync_type = schedule.type.value if hasattr(schedule.type, 'value') else str(schedule.type)
+            elif exec_row.subscription_id:
+                # Manual sync - get info from subscription_id
+                subscription = db.query(Subscription).filter(Subscription.id == exec_row.subscription_id).first()
+                if subscription:
+                    subscription_name = subscription.name
+
+            # Filter by sync_type if provided
+            if sync_type and exec_sync_type != sync_type:
+                continue
+
             duration = None
             if exec_row.started_at and exec_row.completed_at:
                 duration = int((exec_row.completed_at - exec_row.started_at).total_seconds())
@@ -74,8 +88,8 @@ async def get_sync_history(
             history_items.append(SyncHistoryItem(
                 id=f"xtream_{exec_row.id}",
                 source_type="xtream",
-                source_name=subscription.name,
-                sync_type=schedule.type.value if hasattr(schedule.type, 'value') else str(schedule.type),
+                source_name=subscription_name,
+                sync_type=exec_sync_type or "unknown",
                 started_at=exec_row.started_at,
                 completed_at=exec_row.completed_at,
                 duration_seconds=duration,
@@ -88,20 +102,34 @@ async def get_sync_history(
 
     # Plex executions
     if source_type is None or source_type == "plex":
-        plex_query = db.query(PlexScheduleExecution, PlexSchedule, PlexServer).join(
-            PlexSchedule, PlexScheduleExecution.schedule_id == PlexSchedule.id
-        ).join(
-            PlexServer, PlexSchedule.server_id == PlexServer.id
-        )
-
-        if sync_type:
-            plex_query = plex_query.filter(PlexSchedule.type == sync_type)
-
-        plex_executions = plex_query.order_by(
+        # Query all executions (both scheduled and manual)
+        plex_executions = db.query(PlexScheduleExecution).order_by(
             PlexScheduleExecution.started_at.desc()
         ).all()
 
-        for exec_row, schedule, server in plex_executions:
+        for exec_row in plex_executions:
+            # Get server name - from schedule or direct server_id
+            server_name = "Unknown"
+            exec_sync_type = exec_row.sync_type
+
+            if exec_row.schedule_id:
+                # Scheduled sync - get info from schedule
+                schedule = db.query(PlexSchedule).filter(PlexSchedule.id == exec_row.schedule_id).first()
+                if schedule:
+                    server = db.query(PlexServer).filter(PlexServer.id == schedule.server_id).first()
+                    if server:
+                        server_name = server.name
+                    exec_sync_type = schedule.type.value if hasattr(schedule.type, 'value') else str(schedule.type)
+            elif exec_row.server_id:
+                # Manual sync - get info from server_id
+                server = db.query(PlexServer).filter(PlexServer.id == exec_row.server_id).first()
+                if server:
+                    server_name = server.name
+
+            # Filter by sync_type if provided
+            if sync_type and exec_sync_type != sync_type:
+                continue
+
             duration = None
             if exec_row.started_at and exec_row.completed_at:
                 duration = int((exec_row.completed_at - exec_row.started_at).total_seconds())
@@ -109,8 +137,8 @@ async def get_sync_history(
             history_items.append(SyncHistoryItem(
                 id=f"plex_{exec_row.id}",
                 source_type="plex",
-                source_name=server.name,
-                sync_type=schedule.type.value if hasattr(schedule.type, 'value') else str(schedule.type),
+                source_name=server_name,
+                sync_type=exec_sync_type or "unknown",
                 started_at=exec_row.started_at,
                 completed_at=exec_row.completed_at,
                 duration_seconds=duration,

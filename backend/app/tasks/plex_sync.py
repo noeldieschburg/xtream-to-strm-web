@@ -558,22 +558,42 @@ async def process_plex_series(db: Session, client: PlexClient, plex_server, fm: 
 
 
 @celery_app.task
-def sync_plex_movies_task(server_id: int):
+def sync_plex_movies_task(server_id: int, execution_id: int = None):
     """
     Celery task to sync Plex movies.
 
     @param server_id Database ID of the Plex server to sync
+    @param execution_id Optional execution record ID (for scheduled syncs)
     """
     db = SessionLocal()
+    execution = None
     try:
         server = db.query(PlexServer).filter(PlexServer.id == server_id).first()
         if not server:
             logger.error(f"Plex server {server_id} not found")
             return "Server not found"
 
+        # Get or create execution record
+        if execution_id:
+            execution = db.query(PlexScheduleExecution).filter(PlexScheduleExecution.id == execution_id).first()
+        else:
+            # Manual sync - create execution record
+            execution = PlexScheduleExecution(
+                server_id=server_id,
+                sync_type="movies",
+                status=PlexExecutionStatus.RUNNING
+            )
+            db.add(execution)
+            db.commit()
+
         account = db.query(PlexAccount).filter(PlexAccount.id == server.account_id).first()
         if not account:
             logger.error(f"Plex account for server {server_id} not found")
+            if execution:
+                execution.status = PlexExecutionStatus.FAILED
+                execution.error_message = "Account not found"
+                execution.completed_at = datetime.utcnow()
+                db.commit()
             return "Account not found"
 
         client = PlexClient(account.auth_token)
@@ -589,37 +609,81 @@ def sync_plex_movies_task(server_id: int):
                 sync_state.status = "failed"
                 sync_state.error_message = "Cannot connect to Plex server"
                 db.commit()
+            if execution:
+                execution.status = PlexExecutionStatus.FAILED
+                execution.error_message = "Cannot connect to Plex server"
+                execution.completed_at = datetime.utcnow()
+                db.commit()
             return "Cannot connect to Plex server"
 
         fm = FileManager(server.movies_dir)
 
         asyncio.run(process_plex_movies(db, client, plex_server, fm, server_id))
+
+        # Update execution record on success
+        if execution:
+            execution.status = PlexExecutionStatus.SUCCESS
+            execution.completed_at = datetime.utcnow()
+            # Get items processed from sync state
+            sync_state = db.query(PlexSyncState).filter(
+                PlexSyncState.server_id == server_id,
+                PlexSyncState.type == "movies"
+            ).first()
+            if sync_state:
+                execution.items_processed = (sync_state.items_added or 0) + (sync_state.items_deleted or 0)
+            db.commit()
+
         return f"Plex movies synced for {server.name}"
 
     except Exception as e:
         logger.exception(f"Error in sync_plex_movies_task: {e}")
+        if execution:
+            execution.status = PlexExecutionStatus.FAILED
+            execution.error_message = str(e)
+            execution.completed_at = datetime.utcnow()
+            db.commit()
         return f"Error: {str(e)}"
     finally:
         db.close()
 
 
 @celery_app.task
-def sync_plex_series_task(server_id: int):
+def sync_plex_series_task(server_id: int, execution_id: int = None):
     """
     Celery task to sync Plex series.
 
     @param server_id Database ID of the Plex server to sync
+    @param execution_id Optional execution record ID (for scheduled syncs)
     """
     db = SessionLocal()
+    execution = None
     try:
         server = db.query(PlexServer).filter(PlexServer.id == server_id).first()
         if not server:
             logger.error(f"Plex server {server_id} not found")
             return "Server not found"
 
+        # Get or create execution record
+        if execution_id:
+            execution = db.query(PlexScheduleExecution).filter(PlexScheduleExecution.id == execution_id).first()
+        else:
+            # Manual sync - create execution record
+            execution = PlexScheduleExecution(
+                server_id=server_id,
+                sync_type="series",
+                status=PlexExecutionStatus.RUNNING
+            )
+            db.add(execution)
+            db.commit()
+
         account = db.query(PlexAccount).filter(PlexAccount.id == server.account_id).first()
         if not account:
             logger.error(f"Plex account for server {server_id} not found")
+            if execution:
+                execution.status = PlexExecutionStatus.FAILED
+                execution.error_message = "Account not found"
+                execution.completed_at = datetime.utcnow()
+                db.commit()
             return "Account not found"
 
         client = PlexClient(account.auth_token)
@@ -635,15 +699,39 @@ def sync_plex_series_task(server_id: int):
                 sync_state.status = "failed"
                 sync_state.error_message = "Cannot connect to Plex server"
                 db.commit()
+            if execution:
+                execution.status = PlexExecutionStatus.FAILED
+                execution.error_message = "Cannot connect to Plex server"
+                execution.completed_at = datetime.utcnow()
+                db.commit()
             return "Cannot connect to Plex server"
 
         fm = FileManager(server.series_dir)
 
         asyncio.run(process_plex_series(db, client, plex_server, fm, server_id))
+
+        # Update execution record on success
+        if execution:
+            execution.status = PlexExecutionStatus.SUCCESS
+            execution.completed_at = datetime.utcnow()
+            # Get items processed from sync state
+            sync_state = db.query(PlexSyncState).filter(
+                PlexSyncState.server_id == server_id,
+                PlexSyncState.type == "series"
+            ).first()
+            if sync_state:
+                execution.items_processed = (sync_state.items_added or 0) + (sync_state.items_deleted or 0)
+            db.commit()
+
         return f"Plex series synced for {server.name}"
 
     except Exception as e:
         logger.exception(f"Error in sync_plex_series_task: {e}")
+        if execution:
+            execution.status = PlexExecutionStatus.FAILED
+            execution.error_message = str(e)
+            execution.completed_at = datetime.utcnow()
+            db.commit()
         return f"Error: {str(e)}"
     finally:
         db.close()
@@ -665,35 +753,27 @@ def check_plex_schedules_task():
             # Create execution record
             execution = PlexScheduleExecution(
                 schedule_id=schedule.id,
+                server_id=schedule.server_id,
+                sync_type=schedule.type.value if hasattr(schedule.type, 'value') else str(schedule.type),
                 status=PlexExecutionStatus.RUNNING
             )
             db.add(execution)
             db.commit()
 
             try:
-                # Trigger appropriate sync
+                # Trigger appropriate sync with execution_id
+                # The sync task will update the execution status
                 if schedule.type == PlexScheduleSyncType.MOVIES:
-                    result = sync_plex_movies_task.apply_async(args=[schedule.server_id])
+                    sync_plex_movies_task.apply_async(args=[schedule.server_id, execution.id])
                 else:
-                    result = sync_plex_series_task.apply_async(args=[schedule.server_id])
-
-                # Update execution status
-                execution.status = PlexExecutionStatus.SUCCESS
-                execution.completed_at = datetime.utcnow()
-
-                # Get items processed from sync state
-                sync_state = db.query(PlexSyncState).filter(
-                    PlexSyncState.server_id == schedule.server_id,
-                    PlexSyncState.type == ("movies" if schedule.type == PlexScheduleSyncType.MOVIES else "series")
-                ).first()
-                if sync_state:
-                    execution.items_processed = (sync_state.items_added or 0) + (sync_state.items_deleted or 0)
+                    sync_plex_series_task.apply_async(args=[schedule.server_id, execution.id])
 
             except Exception as e:
-                logger.exception(f"Error executing scheduled Plex sync for {schedule.type}")
+                logger.exception(f"Error triggering scheduled Plex sync for {schedule.type}")
                 execution.status = PlexExecutionStatus.FAILED
                 execution.error_message = str(e)
                 execution.completed_at = datetime.utcnow()
+                db.commit()
 
             # Update schedule for next run
             schedule.last_run = now

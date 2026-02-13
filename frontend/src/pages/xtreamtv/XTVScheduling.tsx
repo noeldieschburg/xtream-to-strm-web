@@ -67,10 +67,6 @@ export default function XTVScheduling() {
     // Jellyfin state
     const [jellyfinConfig, setJellyfinConfig] = useState<JellyfinConfig | null>(null);
     const [jellyfinLibraries, setJellyfinLibraries] = useState<JellyfinLibrary[]>([]);
-    const [jellyfinUrl, setJellyfinUrl] = useState('');
-    const [jellyfinToken, setJellyfinToken] = useState('');
-    const [jellyfinLoading, setJellyfinLoading] = useState(false);
-    const [jellyfinTestResult, setJellyfinTestResult] = useState<{ success: boolean; message: string } | null>(null);
     const [refreshingLibrary, setRefreshingLibrary] = useState<'movies' | 'series' | null>(null);
 
     useEffect(() => {
@@ -136,7 +132,6 @@ export default function XTVScheduling() {
         try {
             const res = await api.get<JellyfinConfig>('/jellyfin/config');
             setJellyfinConfig(res.data);
-            if (res.data.url) setJellyfinUrl(res.data.url);
             if (res.data.is_configured) {
                 fetchJellyfinLibraries();
             }
@@ -166,31 +161,6 @@ export default function XTVScheduling() {
         } catch (error) {
             console.error('Error saving Jellyfin config:', error);
             toast.error('Failed to save Jellyfin settings');
-        }
-    };
-
-    const testJellyfinConnection = async () => {
-        setJellyfinLoading(true);
-        setJellyfinTestResult(null);
-        try {
-            // Save URL and token first
-            await api.post('/jellyfin/config', { url: jellyfinUrl, api_token: jellyfinToken });
-            // Then test
-            const res = await api.post<{ success: boolean; message: string; server_name?: string; version?: string }>('/jellyfin/test');
-            setJellyfinTestResult(res.data);
-            if (res.data.success) {
-                toast.success(res.data.message);
-                fetchJellyfinConfig();
-                fetchJellyfinLibraries();
-            } else {
-                toast.error(res.data.message);
-            }
-        } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : 'Connection failed';
-            setJellyfinTestResult({ success: false, message });
-            toast.error(message);
-        } finally {
-            setJellyfinLoading(false);
         }
     };
 
@@ -404,43 +374,10 @@ export default function XTVScheduling() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                    {/* Server Configuration */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">Jellyfin Server URL</label>
-                            <input
-                                type="text"
-                                placeholder="http://jellyfin:8096"
-                                value={jellyfinUrl}
-                                onChange={(e) => setJellyfinUrl(e.target.value)}
-                                className="w-full border rounded-md px-3 py-2 text-sm"
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">API Token</label>
-                            <div className="flex gap-2">
-                                <input
-                                    type="password"
-                                    placeholder={jellyfinConfig?.api_token_set ? '••••••••' : 'Enter API token'}
-                                    value={jellyfinToken}
-                                    onChange={(e) => setJellyfinToken(e.target.value)}
-                                    className="flex-1 border rounded-md px-3 py-2 text-sm"
-                                />
-                                <button
-                                    onClick={testJellyfinConnection}
-                                    disabled={jellyfinLoading || !jellyfinUrl}
-                                    className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 disabled:opacity-50"
-                                >
-                                    {jellyfinLoading ? 'Testing...' : 'Test'}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Test Result */}
-                    {jellyfinTestResult && (
-                        <div className={`p-3 rounded-md text-sm ${jellyfinTestResult.success ? 'bg-green-500/10 text-green-600 border border-green-500/20' : 'bg-red-500/10 text-red-600 border border-red-500/20'}`}>
-                            {jellyfinTestResult.message}
+                    {/* Not configured message */}
+                    {!jellyfinConfig?.is_configured && (
+                        <div className="p-3 rounded-md bg-yellow-500/10 text-yellow-600 border border-yellow-500/20 text-sm">
+                            Jellyfin is not configured. Go to <a href="/admin" className="underline font-medium">Administration</a> to set up your Jellyfin server URL and API token.
                         </div>
                     )}
 

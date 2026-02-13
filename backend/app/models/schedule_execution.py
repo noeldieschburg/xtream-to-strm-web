@@ -11,9 +11,11 @@ class ExecutionStatus(str, enum.Enum):
 
 class ScheduleExecution(Base):
     __tablename__ = "schedule_executions"
-    
+
     id = Column(Integer, primary_key=True, index=True)
-    schedule_id = Column(Integer, ForeignKey("schedules.id"), nullable=False)
+    schedule_id = Column(Integer, ForeignKey("schedules.id"), nullable=True)  # Nullable for manual syncs
+    subscription_id = Column(Integer, nullable=True)  # Direct reference for manual syncs
+    sync_type = Column(String, nullable=True)  # "movies" or "series" for manual syncs
     started_at = Column(DateTime, server_default=func.now(), nullable=False)
     completed_at = Column(DateTime, nullable=True)
     status = Column(SQLEnum(ExecutionStatus), nullable=False, default=ExecutionStatus.RUNNING)

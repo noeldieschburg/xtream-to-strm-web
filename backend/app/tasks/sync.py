@@ -481,44 +481,116 @@ async def process_series(db: Session, xc: XtreamClient, fm: FileManager, subscri
         raise
 
 @celery_app.task
-def sync_movies_task(subscription_id: int):
+def sync_movies_task(subscription_id: int, execution_id: int = None):
     db = SessionLocal()
+    execution = None
     try:
         sub = db.query(Subscription).filter(Subscription.id == subscription_id).first()
         if not sub:
             logger.error(f"Subscription {subscription_id} not found")
             return "Subscription not found"
-        
+
         if not sub.is_active:
             logger.info(f"Subscription {sub.name} is inactive")
             return "Subscription inactive"
 
+        # Get or create execution record
+        if execution_id:
+            execution = db.query(ScheduleExecution).filter(ScheduleExecution.id == execution_id).first()
+        else:
+            # Manual sync - create execution record
+            execution = ScheduleExecution(
+                subscription_id=subscription_id,
+                sync_type="movies",
+                status=ExecutionStatus.RUNNING
+            )
+            db.add(execution)
+            db.commit()
+
         xc = XtreamClient(sub.xtream_url, sub.username, sub.password)
         fm = FileManager(sub.movies_dir)
-        
+
         asyncio.run(process_movies(db, xc, fm, subscription_id))
+
+        # Update execution record on success
+        if execution:
+            execution.status = ExecutionStatus.SUCCESS
+            execution.completed_at = datetime.utcnow()
+            # Get items processed from sync state
+            sync_state = db.query(SyncState).filter(
+                SyncState.subscription_id == subscription_id,
+                SyncState.type == SyncType.MOVIES
+            ).first()
+            if sync_state:
+                execution.items_processed = (sync_state.items_added or 0) + (sync_state.items_deleted or 0)
+            db.commit()
+
         return f"Movies synced successfully for {sub.name}"
+    except Exception as e:
+        logger.exception(f"Error syncing movies for subscription {subscription_id}")
+        if execution:
+            execution.status = ExecutionStatus.FAILED
+            execution.error_message = str(e)
+            execution.completed_at = datetime.utcnow()
+            db.commit()
+        raise
     finally:
         db.close()
 
 @celery_app.task
-def sync_series_task(subscription_id: int):
+def sync_series_task(subscription_id: int, execution_id: int = None):
     db = SessionLocal()
+    execution = None
     try:
         sub = db.query(Subscription).filter(Subscription.id == subscription_id).first()
         if not sub:
             logger.error(f"Subscription {subscription_id} not found")
             return "Subscription not found"
-        
+
         if not sub.is_active:
             logger.info(f"Subscription {sub.name} is inactive")
             return "Subscription inactive"
 
+        # Get or create execution record
+        if execution_id:
+            execution = db.query(ScheduleExecution).filter(ScheduleExecution.id == execution_id).first()
+        else:
+            # Manual sync - create execution record
+            execution = ScheduleExecution(
+                subscription_id=subscription_id,
+                sync_type="series",
+                status=ExecutionStatus.RUNNING
+            )
+            db.add(execution)
+            db.commit()
+
         xc = XtreamClient(sub.xtream_url, sub.username, sub.password)
         fm = FileManager(sub.series_dir)
-        
+
         asyncio.run(process_series(db, xc, fm, subscription_id))
+
+        # Update execution record on success
+        if execution:
+            execution.status = ExecutionStatus.SUCCESS
+            execution.completed_at = datetime.utcnow()
+            # Get items processed from sync state
+            sync_state = db.query(SyncState).filter(
+                SyncState.subscription_id == subscription_id,
+                SyncState.type == SyncType.SERIES
+            ).first()
+            if sync_state:
+                execution.items_processed = (sync_state.items_added or 0) + (sync_state.items_deleted or 0)
+            db.commit()
+
         return f"Series synced successfully for {sub.name}"
+    except Exception as e:
+        logger.exception(f"Error syncing series for subscription {subscription_id}")
+        if execution:
+            execution.status = ExecutionStatus.FAILED
+            execution.error_message = str(e)
+            execution.completed_at = datetime.utcnow()
+            db.commit()
+        raise
     finally:
         db.close()
 
@@ -533,45 +605,37 @@ def check_schedules_task():
             Schedule.enabled == True,
             Schedule.next_run <= now
         ).all()
-        
+
         for schedule in schedules:
             # Create execution record
             execution = ScheduleExecution(
                 schedule_id=schedule.id,
+                subscription_id=schedule.subscription_id,
+                sync_type=schedule.type.value if hasattr(schedule.type, 'value') else str(schedule.type),
                 status=ExecutionStatus.RUNNING
             )
             db.add(execution)
             db.commit()
-            
+
             try:
-                # Trigger appropriate sync
+                # Trigger appropriate sync with execution_id
+                # The sync task will update the execution status
                 if schedule.type == ScheduleSyncType.MOVIES:
-                    result = sync_movies_task.apply_async(args=[schedule.subscription_id])
+                    sync_movies_task.apply_async(args=[schedule.subscription_id, execution.id])
                 else:
-                    result = sync_series_task.apply_async(args=[schedule.subscription_id])
-                
-                # Update execution status
-                execution.status = ExecutionStatus.SUCCESS
-                execution.completed_at = datetime.utcnow()
-                
-                # Get items processed from sync state
-                sync_state = db.query(SyncState).filter(
-                    SyncState.subscription_id == schedule.subscription_id,
-                    SyncState.type == (SyncType.MOVIES if schedule.type == ScheduleSyncType.MOVIES else SyncType.SERIES)
-                ).first()
-                if sync_state:
-                    execution.items_processed = (sync_state.items_added or 0) + (sync_state.items_deleted or 0)
-                
+                    sync_series_task.apply_async(args=[schedule.subscription_id, execution.id])
+
             except Exception as e:
-                logger.exception(f"Error executing scheduled sync for {schedule.type}")
+                logger.exception(f"Error triggering scheduled sync for {schedule.type}")
                 execution.status = ExecutionStatus.FAILED
                 execution.error_message = str(e)
                 execution.completed_at = datetime.utcnow()
-            
+                db.commit()
+
             # Update schedule for next run
             schedule.last_run = now
             schedule.next_run = schedule.calculate_next_run()
             db.commit()
-            
+
     finally:
         db.close()

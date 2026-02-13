@@ -15,7 +15,9 @@ class PlexScheduleExecution(Base):
     __tablename__ = "plex_schedule_executions"
 
     id = Column(Integer, primary_key=True, index=True)
-    schedule_id = Column(Integer, ForeignKey("plex_schedules.id"), nullable=False)
+    schedule_id = Column(Integer, ForeignKey("plex_schedules.id"), nullable=True)  # Nullable for manual syncs
+    server_id = Column(Integer, nullable=True)  # Direct reference for manual syncs
+    sync_type = Column(String, nullable=True)  # "movies" or "series" for manual syncs
     started_at = Column(DateTime, server_default=func.now(), nullable=False)
     completed_at = Column(DateTime, nullable=True)
     status = Column(SQLEnum(PlexExecutionStatus), nullable=False, default=PlexExecutionStatus.RUNNING)

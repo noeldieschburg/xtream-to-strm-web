@@ -38,6 +38,13 @@ export default function Administration() {
     const [plexSharedKey, setPlexSharedKey] = useState('');
     const [plexSettingsLoading, setPlexSettingsLoading] = useState(false);
 
+    // Jellyfin Settings State
+    const [jellyfinUrl, setJellyfinUrl] = useState('');
+    const [jellyfinToken, setJellyfinToken] = useState('');
+    const [jellyfinLoading, setJellyfinLoading] = useState(false);
+    const [jellyfinTestResult, setJellyfinTestResult] = useState<{ success: boolean; message: string; server_name?: string; version?: string } | null>(null);
+    const [jellyfinConfigured, setJellyfinConfigured] = useState(false);
+
     // Dialog state
     const [dialogState, setDialogState] = useState<{
         type: 'deleteFiles' | 'resetDb' | 'resetAll' | 'clearMovieCache' | 'clearSeriesCache' | 'clearPlexCache' | null;
@@ -61,6 +68,15 @@ export default function Administration() {
                 setUseMovieCategoryFolders(response.data.MOVIE_USE_CATEGORY_FOLDERS !== false);
                 setPlexProxyBaseUrl(response.data.PLEX_PROXY_BASE_URL || 'http://localhost:8000');
                 setPlexSharedKey(response.data.PLEX_SHARED_KEY || '');
+
+                // Load Jellyfin Settings
+                try {
+                    const jellyfinRes = await api.get('/jellyfin/config');
+                    if (jellyfinRes.data.url) setJellyfinUrl(jellyfinRes.data.url);
+                    setJellyfinConfigured(jellyfinRes.data.is_configured || false);
+                } catch (err) {
+                    console.error('Failed to load Jellyfin config', err);
+                }
 
                 // Load Download Settings
                 const dlRes = await api.get('/config/downloads');
@@ -114,6 +130,30 @@ export default function Administration() {
             toast.error('Failed to save Plex settings.');
         } finally {
             setPlexSettingsLoading(false);
+        }
+    };
+
+    const testJellyfinConnection = async () => {
+        setJellyfinLoading(true);
+        setJellyfinTestResult(null);
+        try {
+            // Save URL and token first
+            await api.post('/jellyfin/config', { url: jellyfinUrl, api_token: jellyfinToken || undefined });
+            // Then test
+            const res = await api.post<{ success: boolean; message: string; server_name?: string; version?: string }>('/jellyfin/test');
+            setJellyfinTestResult(res.data);
+            if (res.data.success) {
+                toast.success(res.data.message);
+                setJellyfinConfigured(true);
+            } else {
+                toast.error(res.data.message);
+            }
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Connection failed';
+            setJellyfinTestResult({ success: false, message });
+            toast.error(message);
+        } finally {
+            setJellyfinLoading(false);
         }
     };
 
@@ -636,6 +676,71 @@ export default function Administration() {
                         >
                             <Server className="w-4 h-4 mr-2" />
                             Save Plex Settings
+                        </Button>
+                    </CardContent>
+                </Card>
+
+                {/* Jellyfin Settings */}
+                <Card className="border-blue-200 dark:border-blue-900">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
+                            <Server className="w-5 h-5" />
+                            Jellyfin Settings
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Jellyfin Server URL</label>
+                            <Input
+                                type="text"
+                                value={jellyfinUrl}
+                                onChange={(e) => setJellyfinUrl(e.target.value)}
+                                placeholder="http://jellyfin:8096"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                URL of your Jellyfin server (e.g. <code className="bg-muted px-1 py-0.5 rounded">http://192.168.1.100:8096</code>)
+                            </p>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">API Token</label>
+                            <Input
+                                type="password"
+                                value={jellyfinToken}
+                                onChange={(e) => setJellyfinToken(e.target.value)}
+                                placeholder="Enter Jellyfin API token"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                Create an API token in Jellyfin: Dashboard &gt; API Keys &gt; New API Key
+                            </p>
+                        </div>
+
+                        {/* Test Result */}
+                        {jellyfinTestResult && (
+                            <div className={`p-3 rounded-md text-sm ${jellyfinTestResult.success ? 'bg-green-500/10 text-green-600 border border-green-500/20' : 'bg-red-500/10 text-red-600 border border-red-500/20'}`}>
+                                {jellyfinTestResult.message}
+                                {jellyfinTestResult.server_name && (
+                                    <div className="mt-1 text-xs">
+                                        Server: {jellyfinTestResult.server_name} (v{jellyfinTestResult.version})
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {jellyfinConfigured && (
+                            <div className="p-3 rounded-md bg-green-500/10 text-green-600 border border-green-500/20 text-sm">
+                                Jellyfin is configured. You can now select libraries in Scheduler pages.
+                            </div>
+                        )}
+
+                        <Button
+                            variant="default"
+                            className="w-full bg-blue-600 hover:bg-blue-700"
+                            onClick={testJellyfinConnection}
+                            disabled={jellyfinLoading || !jellyfinUrl}
+                        >
+                            <Server className="w-4 h-4 mr-2" />
+                            {jellyfinLoading ? 'Testing...' : 'Save & Test Connection'}
                         </Button>
                     </CardContent>
                 </Card>
