@@ -72,45 +72,90 @@ def _ensure_schema_up_to_date():
                     # Often changing nullability requires recreation, but let's try a simple approach if the driver allows or just note it.
                     # For now, we will log it as a critical schema issue.
 
-        # 4. Check 'schedule_executions' columns for manual sync tracking
+        # 4. Recreate 'schedule_executions' with nullable schedule_id and new columns
         if "schedule_executions" in existing_tables:
-            exec_cols = [c['name'] for c in inspector.get_columns("schedule_executions")]
-            exec_migrations = [
-                ("subscription_id", "INTEGER"),
-                ("sync_type", "VARCHAR")
-            ]
-            exec_missing = [m for m in exec_migrations if m[0] not in exec_cols]
-            if exec_missing:
-                print(f"🔧 Missing {len(exec_missing)} columns in 'schedule_executions'. Repairing...")
-                with engine.connect() as conn:
-                    for col_name, col_type in exec_missing:
-                        try:
-                            print(f"  Adding column: {col_name}...")
-                            conn.execute(text(f"ALTER TABLE schedule_executions ADD COLUMN {col_name} {col_type}"))
-                            conn.commit()
-                            print(f"  ✅ Added {col_name}")
-                        except Exception as e:
-                            print(f"  ⚠️ Could not add {col_name}: {e}")
+            exec_cols_info = {c['name']: c for c in inspector.get_columns("schedule_executions")}
+            needs_recreate = False
 
-        # 5. Check 'plex_schedule_executions' columns for manual sync tracking
-        if "plex_schedule_executions" in existing_tables:
-            plex_exec_cols = [c['name'] for c in inspector.get_columns("plex_schedule_executions")]
-            plex_exec_migrations = [
-                ("server_id", "INTEGER"),
-                ("sync_type", "VARCHAR")
-            ]
-            plex_exec_missing = [m for m in plex_exec_migrations if m[0] not in plex_exec_cols]
-            if plex_exec_missing:
-                print(f"🔧 Missing {len(plex_exec_missing)} columns in 'plex_schedule_executions'. Repairing...")
+            # Check if schedule_id is not nullable (needs to be nullable for manual syncs)
+            if 'schedule_id' in exec_cols_info and not exec_cols_info['schedule_id'].get('nullable', True):
+                needs_recreate = True
+            # Check if new columns are missing
+            if 'subscription_id' not in exec_cols_info or 'sync_type' not in exec_cols_info:
+                needs_recreate = True
+
+            if needs_recreate:
+                print("🔧 Recreating 'schedule_executions' table with nullable schedule_id...")
                 with engine.connect() as conn:
-                    for col_name, col_type in plex_exec_missing:
-                        try:
-                            print(f"  Adding column: {col_name}...")
-                            conn.execute(text(f"ALTER TABLE plex_schedule_executions ADD COLUMN {col_name} {col_type}"))
-                            conn.commit()
-                            print(f"  ✅ Added {col_name}")
-                        except Exception as e:
-                            print(f"  ⚠️ Could not add {col_name}: {e}")
+                    try:
+                        # SQLite requires table recreation to change nullability
+                        conn.execute(text("""
+                            CREATE TABLE IF NOT EXISTS schedule_executions_new (
+                                id INTEGER PRIMARY KEY,
+                                schedule_id INTEGER REFERENCES schedules(id),
+                                subscription_id INTEGER,
+                                sync_type VARCHAR,
+                                started_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                                completed_at DATETIME,
+                                status VARCHAR NOT NULL DEFAULT 'running',
+                                items_processed INTEGER DEFAULT 0,
+                                error_message TEXT
+                            )
+                        """))
+                        # Copy existing data
+                        conn.execute(text("""
+                            INSERT INTO schedule_executions_new (id, schedule_id, started_at, completed_at, status, items_processed, error_message)
+                            SELECT id, schedule_id, started_at, completed_at, status, items_processed, error_message
+                            FROM schedule_executions
+                        """))
+                        conn.execute(text("DROP TABLE schedule_executions"))
+                        conn.execute(text("ALTER TABLE schedule_executions_new RENAME TO schedule_executions"))
+                        conn.commit()
+                        print("  ✅ Recreated schedule_executions with nullable schedule_id")
+                    except Exception as e:
+                        print(f"  ⚠️ Could not recreate schedule_executions: {e}")
+
+        # 5. Recreate 'plex_schedule_executions' with nullable schedule_id and new columns
+        if "plex_schedule_executions" in existing_tables:
+            plex_exec_cols_info = {c['name']: c for c in inspector.get_columns("plex_schedule_executions")}
+            plex_needs_recreate = False
+
+            # Check if schedule_id is not nullable
+            if 'schedule_id' in plex_exec_cols_info and not plex_exec_cols_info['schedule_id'].get('nullable', True):
+                plex_needs_recreate = True
+            # Check if new columns are missing
+            if 'server_id' not in plex_exec_cols_info or 'sync_type' not in plex_exec_cols_info:
+                plex_needs_recreate = True
+
+            if plex_needs_recreate:
+                print("🔧 Recreating 'plex_schedule_executions' table with nullable schedule_id...")
+                with engine.connect() as conn:
+                    try:
+                        conn.execute(text("""
+                            CREATE TABLE IF NOT EXISTS plex_schedule_executions_new (
+                                id INTEGER PRIMARY KEY,
+                                schedule_id INTEGER REFERENCES plex_schedules(id),
+                                server_id INTEGER,
+                                sync_type VARCHAR,
+                                started_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                                completed_at DATETIME,
+                                status VARCHAR NOT NULL DEFAULT 'running',
+                                items_processed INTEGER DEFAULT 0,
+                                error_message TEXT
+                            )
+                        """))
+                        # Copy existing data
+                        conn.execute(text("""
+                            INSERT INTO plex_schedule_executions_new (id, schedule_id, started_at, completed_at, status, items_processed, error_message)
+                            SELECT id, schedule_id, started_at, completed_at, status, items_processed, error_message
+                            FROM plex_schedule_executions
+                        """))
+                        conn.execute(text("DROP TABLE plex_schedule_executions"))
+                        conn.execute(text("ALTER TABLE plex_schedule_executions_new RENAME TO plex_schedule_executions"))
+                        conn.commit()
+                        print("  ✅ Recreated plex_schedule_executions with nullable schedule_id")
+                    except Exception as e:
+                        print(f"  ⚠️ Could not recreate plex_schedule_executions: {e}")
 
         print("✅ Database schema is up to date.")
             
