@@ -40,7 +40,7 @@ export default function Administration() {
 
     // Dialog state
     const [dialogState, setDialogState] = useState<{
-        type: 'deleteFiles' | 'resetDb' | 'resetAll' | 'clearMovieCache' | 'clearSeriesCache' | null;
+        type: 'deleteFiles' | 'resetDb' | 'resetAll' | 'clearMovieCache' | 'clearSeriesCache' | 'clearPlexCache' | null;
         step: number;
     }>({ type: null, step: 0 });
     const [confirmationInput, setConfirmationInput] = useState('');
@@ -644,7 +644,7 @@ export default function Administration() {
             {/* Cache Management */}
             <div>
                 <h3 className="text-xl font-semibold mb-4 text-gray-700 dark:text-gray-200">Cache Management</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <Card className="border-yellow-200 dark:border-yellow-900">
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2 text-yellow-700 dark:text-yellow-400">
@@ -688,6 +688,28 @@ export default function Administration() {
                             </Button>
                         </CardContent>
                     </Card>
+
+                    <Card className="border-orange-200 dark:border-orange-900">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-orange-700 dark:text-orange-400">
+                                <Server className="w-5 h-5" />
+                                Clear Plex Cache
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-sm text-muted-foreground mb-4">
+                                Force metadata refresh for all Plex movies/series on next sync. Use this if files are missing after sync.
+                            </p>
+                            <Button
+                                variant="outline"
+                                className="w-full border-orange-300 text-orange-700 hover:bg-orange-50 dark:border-orange-800 dark:text-orange-400 dark:hover:bg-orange-950"
+                                onClick={() => setDialogState({ type: 'clearPlexCache', step: 1 })}
+                                disabled={loading}
+                            >
+                                Clear Plex Cache
+                            </Button>
+                        </CardContent>
+                    </Card>
                 </div>
             </div>
 
@@ -703,7 +725,8 @@ export default function Administration() {
                         dialogState.type === 'resetDb' ? 'Reset Database' :
                             dialogState.type === 'resetAll' ? 'Reset Everything' :
                                 dialogState.type === 'clearMovieCache' ? 'Clear Movie Cache' :
-                                    'Clear Series Cache'
+                                    dialogState.type === 'clearSeriesCache' ? 'Clear Series Cache' :
+                                        'Clear Plex Cache'
                 }
             >
                 <div className="space-y-4">
@@ -736,6 +759,9 @@ export default function Administration() {
                     )}
                     {dialogState.type === 'clearSeriesCache' && (
                         <p>This will force metadata to be re-fetched for all series/episodes on the next sync. Files are not deleted.</p>
+                    )}
+                    {dialogState.type === 'clearPlexCache' && (
+                        <p>This will force all Plex movies and series to be re-synced on the next sync. Use this if STRM files are missing after a sync (e.g., volume mount issue). Files are not deleted.</p>
                     )}
 
                     {/* Actions */}
@@ -770,6 +796,9 @@ export default function Administration() {
                                     } else if (dialogState.type === 'clearSeriesCache') {
                                         await api.post('/admin/clear-series-cache');
                                         toast.success('Series cache cleared successfully.');
+                                    } else if (dialogState.type === 'clearPlexCache') {
+                                        await api.post('/admin/clear-plex-cache');
+                                        toast.success('Plex cache cleared successfully. Run a Plex sync to regenerate files.');
                                     }
                                 } catch (error) {
                                     console.error(`Failed to execute ${dialogState.type}`, error);

@@ -6,6 +6,7 @@ from app.models.subscription import Subscription
 from app.models.sync_state import SyncState
 from app.models.selection import SelectedCategory
 from app.models.cache import MovieCache, SeriesCache, EpisodeCache
+from app.models.plex_cache import PlexMovieCache, PlexSeriesCache, PlexEpisodeCache
 from app.models.schedule import Schedule
 from app.models.schedule_execution import ScheduleExecution
 from app.models.m3u_source import M3USource
@@ -112,6 +113,26 @@ def clear_series_cache(db: Session = Depends(get_db)):
     except Exception as e:
         db.rollback()
         return {"message": f"Error clearing series cache: {str(e)}", "success": False}
+
+
+@router.post("/clear-plex-cache")
+def clear_plex_cache(db: Session = Depends(get_db)):
+    """Clear all Plex cache (movies, series, episodes)"""
+    try:
+        movies_deleted = db.query(PlexMovieCache).delete()
+        series_deleted = db.query(PlexSeriesCache).delete()
+        episodes_deleted = db.query(PlexEpisodeCache).delete()
+        db.commit()
+        return {
+            "message": "Plex cache cleared successfully",
+            "movies_cleared": movies_deleted,
+            "series_cleared": series_deleted,
+            "episodes_cleared": episodes_deleted,
+            "success": True
+        }
+    except Exception as e:
+        db.rollback()
+        return {"message": f"Error clearing Plex cache: {str(e)}", "success": False}
 
 
 @router.post("/reset-database")
