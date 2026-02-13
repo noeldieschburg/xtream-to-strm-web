@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Settings, FileText, Activity, Tv, Radio, Download, ChevronDown, ChevronRight, Menu, X, LogOut, Server } from 'lucide-react';
+import { LayoutDashboard, Settings, FileText, Activity, Tv, Radio, Download, ChevronDown, ChevronRight, Menu, X, LogOut, Server, History } from 'lucide-react';
 import Login from './pages/Login';
 import ProtectedRoute from './components/ProtectedRoute';
 import { useState, useEffect } from 'react';
@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react';
 import Dashboard from './pages/Dashboard';
 import Administration from './pages/Administration';
 import Logs from './pages/Logs';
+import SyncHistory from './pages/SyncHistory';
 
 // XtreamTV Pages
 import XTVSubscriptions from './pages/xtreamtv/XTVSubscriptions';
@@ -298,6 +299,15 @@ function Layout({ children }: { children: React.ReactNode }) {
                         <span>Logs</span>
                     </Link>
 
+                    <Link
+                        to="/sync-history"
+                        className={`flex items-center gap-3 px-3 py-2 rounded-md transition-colors ${location.pathname === '/sync-history' ? 'bg-accent text-accent-foreground' : 'hover:bg-accent hover:text-accent-foreground'
+                            }`}
+                    >
+                        <History size={20} />
+                        <span>Sync History</span>
+                    </Link>
+
                     {/* Logout */}
                     <button
                         onClick={handleLogout}
@@ -361,6 +371,7 @@ function App() {
                 {/* Administration & Logs */}
                 <Route path="/admin" element={<ProtectedRoute><Layout><Administration /></Layout></ProtectedRoute>} />
                 <Route path="/logs" element={<ProtectedRoute><Layout><Logs /></Layout></ProtectedRoute>} />
+                <Route path="/sync-history" element={<ProtectedRoute><Layout><SyncHistory /></Layout></ProtectedRoute>} />
 
                 {/* Redirect all other routes to dashboard */}
                 <Route path="*" element={<Navigate to="/" replace />} />
