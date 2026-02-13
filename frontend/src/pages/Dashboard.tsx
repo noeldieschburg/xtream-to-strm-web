@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Film, Tv, Activity, HardDrive } from 'lucide-react';
+import { Film, Tv, Activity, HardDrive, Loader2, CheckCircle, XCircle } from 'lucide-react';
 import api from '@/lib/api';
+
+interface RunningTask {
+    source: string;
+    type: string;
+    sync_type: string;
+    started_at: string | null;
+}
 
 interface DashboardStats {
     total_content: {
@@ -18,8 +25,22 @@ interface DashboardStats {
         in_progress: number;
         errors_24h: number;
         success_rate: number;
+        running_tasks: RunningTask[];
     };
 }
+
+const formatDuration = (startedAt: string | null): string => {
+    if (!startedAt) return '';
+    const start = new Date(startedAt);
+    const now = new Date();
+    const diffMs = now.getTime() - start.getTime();
+    const diffSec = Math.floor(diffMs / 1000);
+    if (diffSec < 60) return `${diffSec}s`;
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `${diffMin}m ${diffSec % 60}s`;
+    const diffHour = Math.floor(diffMin / 60);
+    return `${diffHour}h ${diffMin % 60}m`;
+};
 
 export default function Dashboard() {
     const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -35,9 +56,11 @@ export default function Dashboard() {
 
     useEffect(() => {
         fetchData();
-        const interval = setInterval(fetchData, 5000);
+        const interval = setInterval(fetchData, 3000);
         return () => clearInterval(interval);
     }, []);
+
+    const runningTasks = stats?.sync_status?.running_tasks || [];
 
     return (
         <div className="space-y-8">
@@ -90,44 +113,60 @@ export default function Dashboard() {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
                 <Card className="col-span-4">
                     <CardHeader>
-                        <CardTitle>Sync Status</CardTitle>
+                        <CardTitle className="flex items-center gap-2">
+                            Sync Status
+                            {runningTasks.length > 0 && (
+                                <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                            )}
+                        </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="space-y-8">
-                            <div className="flex items-center">
-                                <Activity className="mr-2 h-4 w-4 opacity-70" />
-                                <div className="ml-4 space-y-1">
-                                    <p className="text-sm font-medium leading-none">In Progress</p>
-                                    <p className="text-sm text-muted-foreground">
-                                        {stats?.sync_status?.in_progress || 0} active sync tasks
-                                    </p>
+                        <div className="space-y-6">
+                            {/* Running Tasks */}
+                            {runningTasks.length > 0 ? (
+                                <div className="space-y-3">
+                                    <p className="text-sm font-medium text-blue-600">Running Tasks:</p>
+                                    {runningTasks.map((task, idx) => (
+                                        <div key={idx} className="flex items-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                                            <Loader2 className="h-4 w-4 animate-spin text-blue-500 mr-3" />
+                                            <div className="flex-1">
+                                                <p className="text-sm font-medium">{task.source}</p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    {task.type === 'plex' ? 'Plex' : 'Xtream'} - {task.sync_type}
+                                                </p>
+                                            </div>
+                                            <div className="text-xs text-muted-foreground">
+                                                {formatDuration(task.started_at)}
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
-                                <div className="ml-auto font-medium">
-                                    {stats?.sync_status?.in_progress === 0 ? 'Idle' : 'Running'}
+                            ) : (
+                                <div className="flex items-center p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                                    <CheckCircle className="h-4 w-4 text-green-500 mr-3" />
+                                    <span className="text-sm text-muted-foreground">No sync tasks running</span>
                                 </div>
-                            </div>
-                            <div className="flex items-center">
-                                <Activity className="mr-2 h-4 w-4 opacity-70" />
-                                <div className="ml-4 space-y-1">
-                                    <p className="text-sm font-medium leading-none">Success Rate</p>
-                                    <p className="text-sm text-muted-foreground">
-                                        Last 24 hours
-                                    </p>
+                            )}
+
+                            {/* Stats */}
+                            <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+                                <div className="flex items-center gap-3">
+                                    <div className={`p-2 rounded-full ${(stats?.sync_status?.success_rate || 100) >= 90 ? 'bg-green-100 dark:bg-green-900/30' : 'bg-yellow-100 dark:bg-yellow-900/30'}`}>
+                                        <CheckCircle className={`h-4 w-4 ${(stats?.sync_status?.success_rate || 100) >= 90 ? 'text-green-600' : 'text-yellow-600'}`} />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-medium">{stats?.sync_status?.success_rate || 100}%</p>
+                                        <p className="text-xs text-muted-foreground">Success (24h)</p>
+                                    </div>
                                 </div>
-                                <div className="ml-auto font-medium text-green-500">
-                                    {stats?.sync_status?.success_rate || 100}%
-                                </div>
-                            </div>
-                            <div className="flex items-center">
-                                <Activity className="mr-2 h-4 w-4 opacity-70" />
-                                <div className="ml-4 space-y-1">
-                                    <p className="text-sm font-medium leading-none">Errors</p>
-                                    <p className="text-sm text-muted-foreground">
-                                        Last 24 hours
-                                    </p>
-                                </div>
-                                <div className="ml-auto font-medium text-red-500">
-                                    {stats?.sync_status?.errors_24h || 0}
+                                <div className="flex items-center gap-3">
+                                    <div className={`p-2 rounded-full ${(stats?.sync_status?.errors_24h || 0) === 0 ? 'bg-gray-100 dark:bg-gray-800' : 'bg-red-100 dark:bg-red-900/30'}`}>
+                                        <XCircle className={`h-4 w-4 ${(stats?.sync_status?.errors_24h || 0) === 0 ? 'text-gray-400' : 'text-red-600'}`} />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-medium">{stats?.sync_status?.errors_24h || 0}</p>
+                                        <p className="text-xs text-muted-foreground">Errors (24h)</p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -178,6 +217,7 @@ export default function Dashboard() {
                     <CardContent className="p-6">
                         <p className="text-muted-foreground">
                             For detailed subscription management and sync controls, visit the <strong>XtreamTV &gt; Subscriptions</strong> page.
+                            View complete sync history on the <strong>Sync History</strong> page.
                         </p>
                     </CardContent>
                 </Card>

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from typing import Dict, List, Any
 from app.db.session import get_db
 from app.models.subscription import Subscription
@@ -8,6 +8,8 @@ from app.models.m3u_source import M3USource
 from app.models.m3u_entry import M3UEntry, EntryType
 from app.models.sync_state import SyncState
 from app.models.schedule import Schedule
+from app.models.schedule_execution import ScheduleExecution, ExecutionStatus
+from app.models.plex_schedule_execution import PlexScheduleExecution, PlexExecutionStatus
 from app.models.cache import MovieCache, SeriesCache
 from app.models.plex_account import PlexAccount
 from app.models.plex_server import PlexServer
@@ -51,35 +53,100 @@ def get_dashboard_stats(db: Session = Depends(get_db)) -> Dict[str, Any]:
     movies_count = m3u_movies + xtream_movies + plex_movies
     series_count = m3u_series + xtream_series + plex_series
     
-    # Sync status
-    recent_syncs = db.query(SyncState).order_by(
-        SyncState.last_sync.desc()
-    ).limit(5).all()
-    
-    # In-progress syncs
-    syncing = db.query(SyncState).filter(
-        SyncState.status == "syncing"
+    # Sync status from execution tables
+    yesterday = datetime.utcnow() - timedelta(days=1)
+
+    # In-progress syncs from execution tables
+    xtream_running = db.query(ScheduleExecution).filter(
+        ScheduleExecution.status == ExecutionStatus.RUNNING
     ).count()
-    
-    # Error count (last 24h)
-    yesterday = datetime.now() - timedelta(days=1)
-    errors_24h = db.query(SyncState).filter(
-        SyncState.status == "error",
-        SyncState.last_sync >= yesterday
+    plex_running = db.query(PlexScheduleExecution).filter(
+        PlexScheduleExecution.status == PlexExecutionStatus.RUNNING
     ).count()
-    
-    # Success rate (last 30 days)
-    thirty_days_ago = datetime.now() - timedelta(days=30)
-    total_syncs = db.query(SyncState).filter(
-        SyncState.last_sync >= thirty_days_ago
+    syncing = xtream_running + plex_running
+
+    # Error count (last 24h) from execution tables
+    xtream_errors = db.query(ScheduleExecution).filter(
+        ScheduleExecution.status == ExecutionStatus.FAILED,
+        ScheduleExecution.started_at >= yesterday
     ).count()
-    successful_syncs = db.query(SyncState).filter(
-        SyncState.status == "success",
-        SyncState.last_sync >= thirty_days_ago
+    plex_errors = db.query(PlexScheduleExecution).filter(
+        PlexScheduleExecution.status == PlexExecutionStatus.FAILED,
+        PlexScheduleExecution.started_at >= yesterday
     ).count()
-    
-    success_rate = (successful_syncs / total_syncs * 100) if total_syncs > 0 else 0
-    
+    errors_24h = xtream_errors + plex_errors
+
+    # Success rate (last 24h) from execution tables
+    xtream_total = db.query(ScheduleExecution).filter(
+        ScheduleExecution.started_at >= yesterday,
+        ScheduleExecution.status != ExecutionStatus.RUNNING
+    ).count()
+    xtream_success = db.query(ScheduleExecution).filter(
+        ScheduleExecution.status == ExecutionStatus.SUCCESS,
+        ScheduleExecution.started_at >= yesterday
+    ).count()
+    plex_total = db.query(PlexScheduleExecution).filter(
+        PlexScheduleExecution.started_at >= yesterday,
+        PlexScheduleExecution.status != PlexExecutionStatus.RUNNING
+    ).count()
+    plex_success = db.query(PlexScheduleExecution).filter(
+        PlexScheduleExecution.status == PlexExecutionStatus.SUCCESS,
+        PlexScheduleExecution.started_at >= yesterday
+    ).count()
+
+    total_completed = xtream_total + plex_total
+    total_success = xtream_success + plex_success
+    success_rate = (total_success / total_completed * 100) if total_completed > 0 else 100
+
+    # Get running tasks details
+    running_tasks = []
+
+    xtream_running_tasks = db.query(ScheduleExecution).filter(
+        ScheduleExecution.status == ExecutionStatus.RUNNING
+    ).all()
+    for task in xtream_running_tasks:
+        source_name = "Unknown"
+        if task.subscription_id:
+            sub = db.query(Subscription).filter(Subscription.id == task.subscription_id).first()
+            if sub:
+                source_name = sub.name
+        elif task.schedule_id:
+            from app.models.schedule import Schedule
+            schedule = db.query(Schedule).filter(Schedule.id == task.schedule_id).first()
+            if schedule:
+                sub = db.query(Subscription).filter(Subscription.id == schedule.subscription_id).first()
+                if sub:
+                    source_name = sub.name
+        running_tasks.append({
+            "source": source_name,
+            "type": "xtream",
+            "sync_type": task.sync_type or "unknown",
+            "started_at": task.started_at.isoformat() if task.started_at else None
+        })
+
+    plex_running_tasks = db.query(PlexScheduleExecution).filter(
+        PlexScheduleExecution.status == PlexExecutionStatus.RUNNING
+    ).all()
+    for task in plex_running_tasks:
+        source_name = "Unknown"
+        if task.server_id:
+            server = db.query(PlexServer).filter(PlexServer.id == task.server_id).first()
+            if server:
+                source_name = server.name
+        elif task.schedule_id:
+            from app.models.plex_schedule import PlexSchedule
+            schedule = db.query(PlexSchedule).filter(PlexSchedule.id == task.schedule_id).first()
+            if schedule:
+                server = db.query(PlexServer).filter(PlexServer.id == schedule.server_id).first()
+                if server:
+                    source_name = server.name
+        running_tasks.append({
+            "source": source_name,
+            "type": "plex",
+            "sync_type": task.sync_type or "unknown",
+            "started_at": task.started_at.isoformat() if task.started_at else None
+        })
+
     return {
         "sources": {
             "total": xtream_total + m3u_total + plex_servers_total,
@@ -97,7 +164,8 @@ def get_dashboard_stats(db: Session = Depends(get_db)) -> Dict[str, Any]:
         "sync_status": {
             "in_progress": syncing,
             "errors_24h": errors_24h,
-            "success_rate": round(success_rate, 1)
+            "success_rate": round(success_rate, 1),
+            "running_tasks": running_tasks
         }
     }
 
