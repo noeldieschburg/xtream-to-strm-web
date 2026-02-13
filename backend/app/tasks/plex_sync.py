@@ -573,6 +573,19 @@ def sync_plex_movies_task(server_id: int, execution_id: int = None):
             logger.error(f"Plex server {server_id} not found")
             return "Server not found"
 
+        # Mark any stale running executions as interrupted
+        stale_executions = db.query(PlexScheduleExecution).filter(
+            PlexScheduleExecution.server_id == server_id,
+            PlexScheduleExecution.sync_type == "movies",
+            PlexScheduleExecution.status == PlexExecutionStatus.RUNNING
+        ).all()
+        for stale in stale_executions:
+            stale.status = PlexExecutionStatus.INTERRUPTED
+            stale.completed_at = datetime.utcnow()
+            stale.error_message = "Interrupted by new sync"
+        if stale_executions:
+            db.commit()
+
         # Get or create execution record
         if execution_id:
             execution = db.query(PlexScheduleExecution).filter(PlexScheduleExecution.id == execution_id).first()
@@ -665,6 +678,19 @@ def sync_plex_series_task(server_id: int, execution_id: int = None):
         if not server:
             logger.error(f"Plex server {server_id} not found")
             return "Server not found"
+
+        # Mark any stale running executions as interrupted
+        stale_executions = db.query(PlexScheduleExecution).filter(
+            PlexScheduleExecution.server_id == server_id,
+            PlexScheduleExecution.sync_type == "series",
+            PlexScheduleExecution.status == PlexExecutionStatus.RUNNING
+        ).all()
+        for stale in stale_executions:
+            stale.status = PlexExecutionStatus.INTERRUPTED
+            stale.completed_at = datetime.utcnow()
+            stale.error_message = "Interrupted by new sync"
+        if stale_executions:
+            db.commit()
 
         # Get or create execution record
         if execution_id:

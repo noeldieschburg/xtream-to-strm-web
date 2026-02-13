@@ -494,6 +494,19 @@ def sync_movies_task(subscription_id: int, execution_id: int = None):
             logger.info(f"Subscription {sub.name} is inactive")
             return "Subscription inactive"
 
+        # Mark any stale running executions as interrupted
+        stale_executions = db.query(ScheduleExecution).filter(
+            ScheduleExecution.subscription_id == subscription_id,
+            ScheduleExecution.sync_type == "movies",
+            ScheduleExecution.status == ExecutionStatus.RUNNING
+        ).all()
+        for stale in stale_executions:
+            stale.status = ExecutionStatus.INTERRUPTED
+            stale.completed_at = datetime.utcnow()
+            stale.error_message = "Interrupted by new sync"
+        if stale_executions:
+            db.commit()
+
         # Get or create execution record
         if execution_id:
             execution = db.query(ScheduleExecution).filter(ScheduleExecution.id == execution_id).first()
@@ -553,6 +566,19 @@ def sync_series_task(subscription_id: int, execution_id: int = None):
         if not sub.is_active:
             logger.info(f"Subscription {sub.name} is inactive")
             return "Subscription inactive"
+
+        # Mark any stale running executions as interrupted
+        stale_executions = db.query(ScheduleExecution).filter(
+            ScheduleExecution.subscription_id == subscription_id,
+            ScheduleExecution.sync_type == "series",
+            ScheduleExecution.status == ExecutionStatus.RUNNING
+        ).all()
+        for stale in stale_executions:
+            stale.status = ExecutionStatus.INTERRUPTED
+            stale.completed_at = datetime.utcnow()
+            stale.error_message = "Interrupted by new sync"
+        if stale_executions:
+            db.commit()
 
         # Get or create execution record
         if execution_id:

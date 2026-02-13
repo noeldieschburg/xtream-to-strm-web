@@ -8,6 +8,7 @@ class ExecutionStatus(str, enum.Enum):
     FAILED = "failed"
     CANCELLED = "cancelled"
     RUNNING = "running"
+    INTERRUPTED = "interrupted"
 
 class ScheduleExecution(Base):
     __tablename__ = "schedule_executions"

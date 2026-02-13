@@ -9,6 +9,7 @@ class PlexExecutionStatus(str, enum.Enum):
     FAILED = "failed"
     CANCELLED = "cancelled"
     RUNNING = "running"
+    INTERRUPTED = "interrupted"
 
 
 class PlexScheduleExecution(Base):
