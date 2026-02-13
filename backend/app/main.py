@@ -68,10 +68,50 @@ def _ensure_schema_up_to_date():
             for col in cat_cols:
                 if col['name'] == 'category_id' and not col['nullable']:
                     print("⚠️  'category_id' in 'live_playlist_bouquets' is NOT NULL but should be nullable. Fixing...")
-                    # In SQLite, we can try to ALTER but it's limited. 
+                    # In SQLite, we can try to ALTER but it's limited.
                     # Often changing nullability requires recreation, but let's try a simple approach if the driver allows or just note it.
                     # For now, we will log it as a critical schema issue.
-            
+
+        # 4. Check 'schedule_executions' columns for manual sync tracking
+        if "schedule_executions" in existing_tables:
+            exec_cols = [c['name'] for c in inspector.get_columns("schedule_executions")]
+            exec_migrations = [
+                ("subscription_id", "INTEGER"),
+                ("sync_type", "VARCHAR")
+            ]
+            exec_missing = [m for m in exec_migrations if m[0] not in exec_cols]
+            if exec_missing:
+                print(f"🔧 Missing {len(exec_missing)} columns in 'schedule_executions'. Repairing...")
+                with engine.connect() as conn:
+                    for col_name, col_type in exec_missing:
+                        try:
+                            print(f"  Adding column: {col_name}...")
+                            conn.execute(text(f"ALTER TABLE schedule_executions ADD COLUMN {col_name} {col_type}"))
+                            conn.commit()
+                            print(f"  ✅ Added {col_name}")
+                        except Exception as e:
+                            print(f"  ⚠️ Could not add {col_name}: {e}")
+
+        # 5. Check 'plex_schedule_executions' columns for manual sync tracking
+        if "plex_schedule_executions" in existing_tables:
+            plex_exec_cols = [c['name'] for c in inspector.get_columns("plex_schedule_executions")]
+            plex_exec_migrations = [
+                ("server_id", "INTEGER"),
+                ("sync_type", "VARCHAR")
+            ]
+            plex_exec_missing = [m for m in plex_exec_migrations if m[0] not in plex_exec_cols]
+            if plex_exec_missing:
+                print(f"🔧 Missing {len(plex_exec_missing)} columns in 'plex_schedule_executions'. Repairing...")
+                with engine.connect() as conn:
+                    for col_name, col_type in plex_exec_missing:
+                        try:
+                            print(f"  Adding column: {col_name}...")
+                            conn.execute(text(f"ALTER TABLE plex_schedule_executions ADD COLUMN {col_name} {col_type}"))
+                            conn.commit()
+                            print(f"  ✅ Added {col_name}")
+                        except Exception as e:
+                            print(f"  ⚠️ Could not add {col_name}: {e}")
+
         print("✅ Database schema is up to date.")
             
     except Exception as e:
