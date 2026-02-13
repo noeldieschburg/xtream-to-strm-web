@@ -64,3 +64,8 @@ dump.rdb
 # Environment
 .env
 .env.local
+
+# Local/Test files
+CLAUDE.md
+test_plex_url.py
+test_plex_url.php
