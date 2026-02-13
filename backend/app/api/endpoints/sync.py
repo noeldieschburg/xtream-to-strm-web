@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from typing import List
+from datetime import datetime
 from app.db.session import get_db
 from app.models.sync_state import SyncState
+from app.models.schedule_execution import ScheduleExecution, ExecutionStatus
 from app.schemas import SyncStatusResponse, SyncTriggerResponse
 from app.tasks.sync import sync_movies_task, sync_series_task
 
@@ -67,21 +69,33 @@ def trigger_series_sync(subscription_id: int, db: Session = Depends(get_db)):
 def stop_sync(subscription_id: int, sync_type: str, db: Session = Depends(get_db)):
     """Stop a running sync task"""
     from app.core.celery_app import celery_app
-    
+
     sync_state = db.query(SyncState).filter(
         SyncState.subscription_id == subscription_id,
         SyncState.type == sync_type
     ).first()
-    
+
     if not sync_state or not sync_state.task_id:
         return {"message": "No running task found"}
-    
+
     # Revoke the task
     celery_app.control.revoke(sync_state.task_id, terminate=True)
-    
-    # Update status
+
+    # Update sync_state status
     sync_state.status = "idle"
     sync_state.task_id = None
+
+    # Update any running execution records to cancelled
+    running_executions = db.query(ScheduleExecution).filter(
+        ScheduleExecution.subscription_id == subscription_id,
+        ScheduleExecution.sync_type == sync_type,
+        ScheduleExecution.status == ExecutionStatus.RUNNING
+    ).all()
+
+    for execution in running_executions:
+        execution.status = ExecutionStatus.CANCELLED
+        execution.completed_at = datetime.utcnow()
+
     db.commit()
-    
+
     return {"message": f"{sync_type.capitalize()} sync stopped successfully"}

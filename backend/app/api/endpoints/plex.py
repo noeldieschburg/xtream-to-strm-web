@@ -14,11 +14,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from typing import List
+from datetime import datetime
 from app.api import deps
 from app.models.plex_account import PlexAccount
 from app.models.plex_server import PlexServer
 from app.models.plex_library import PlexLibrary
 from app.models.plex_sync_state import PlexSyncState
+from app.models.plex_schedule_execution import PlexScheduleExecution, PlexExecutionStatus
 from app.models.plex_cache import PlexMovieCache, PlexSeriesCache, PlexEpisodeCache
 from app.models.settings import SettingsModel
 from app.schemas import (
@@ -393,6 +395,47 @@ def trigger_series_sync(server_id: int, db: Session = Depends(deps.get_db)):
     db.commit()
 
     return {"message": "Series sync started", "task_id": task.id}
+
+
+@router.post("/sync/stop/{server_id}/{sync_type}")
+def stop_plex_sync(server_id: int, sync_type: str, db: Session = Depends(deps.get_db)):
+    """
+    Stop a running Plex sync task.
+
+    @param server_id Server ID
+    @param sync_type Type of sync (movies or series)
+    """
+    from app.core.celery_app import celery_app
+
+    sync_state = db.query(PlexSyncState).filter(
+        PlexSyncState.server_id == server_id,
+        PlexSyncState.type == sync_type
+    ).first()
+
+    if not sync_state or not sync_state.task_id:
+        return {"message": "No running task found"}
+
+    # Revoke the task
+    celery_app.control.revoke(sync_state.task_id, terminate=True)
+
+    # Update sync_state status
+    sync_state.status = "idle"
+    sync_state.task_id = None
+
+    # Update any running execution records to cancelled
+    running_executions = db.query(PlexScheduleExecution).filter(
+        PlexScheduleExecution.server_id == server_id,
+        PlexScheduleExecution.sync_type == sync_type,
+        PlexScheduleExecution.status == PlexExecutionStatus.RUNNING
+    ).all()
+
+    for execution in running_executions:
+        execution.status = PlexExecutionStatus.CANCELLED
+        execution.completed_at = datetime.utcnow()
+
+    db.commit()
+
+    return {"message": f"{sync_type.capitalize()} sync stopped successfully"}
 
 
 # --- Proxy Streaming ---
