@@ -11,6 +11,10 @@ celery_app.conf.beat_schedule = {
         'task': 'app.tasks.sync.check_schedules_task',
         'schedule': 60.0,
     },
+    'check-plex-schedules-every-minute': {
+        'task': 'app.tasks.plex_sync.check_plex_schedules_task',
+        'schedule': 60.0,
+    },
     'check-auto-downloads-every-hour': {
         'task': 'app.tasks.downloads.check_auto_downloads',
         'schedule': 3600.0,  # Run every hour

@@ -19,6 +19,8 @@ from app.models.plex_server import PlexServer
 from app.models.plex_library import PlexLibrary
 from app.models.plex_sync_state import PlexSyncState
 from app.models.plex_cache import PlexMovieCache, PlexSeriesCache, PlexEpisodeCache
+from app.models.plex_schedule import PlexSchedule, PlexSyncType as PlexScheduleSyncType
+from app.models.plex_schedule_execution import PlexScheduleExecution, PlexExecutionStatus
 from app.models.settings import SettingsModel
 from app.services.plex import PlexClient
 from app.services.file_manager import FileManager
@@ -643,5 +645,60 @@ def sync_plex_series_task(server_id: int):
     except Exception as e:
         logger.exception(f"Error in sync_plex_series_task: {e}")
         return f"Error: {str(e)}"
+    finally:
+        db.close()
+
+
+@celery_app.task
+def check_plex_schedules_task():
+    """Check Plex schedules and trigger syncs if needed"""
+    db = SessionLocal()
+    try:
+        now = datetime.utcnow()
+        # Get enabled schedules that are due
+        schedules = db.query(PlexSchedule).filter(
+            PlexSchedule.enabled == True,
+            PlexSchedule.next_run <= now
+        ).all()
+
+        for schedule in schedules:
+            # Create execution record
+            execution = PlexScheduleExecution(
+                schedule_id=schedule.id,
+                status=PlexExecutionStatus.RUNNING
+            )
+            db.add(execution)
+            db.commit()
+
+            try:
+                # Trigger appropriate sync
+                if schedule.type == PlexScheduleSyncType.MOVIES:
+                    result = sync_plex_movies_task.apply_async(args=[schedule.server_id])
+                else:
+                    result = sync_plex_series_task.apply_async(args=[schedule.server_id])
+
+                # Update execution status
+                execution.status = PlexExecutionStatus.SUCCESS
+                execution.completed_at = datetime.utcnow()
+
+                # Get items processed from sync state
+                sync_state = db.query(PlexSyncState).filter(
+                    PlexSyncState.server_id == schedule.server_id,
+                    PlexSyncState.type == ("movies" if schedule.type == PlexScheduleSyncType.MOVIES else "series")
+                ).first()
+                if sync_state:
+                    execution.items_processed = (sync_state.items_added or 0) + (sync_state.items_deleted or 0)
+
+            except Exception as e:
+                logger.exception(f"Error executing scheduled Plex sync for {schedule.type}")
+                execution.status = PlexExecutionStatus.FAILED
+                execution.error_message = str(e)
+                execution.completed_at = datetime.utcnow()
+
+            # Update schedule for next run
+            schedule.last_run = now
+            schedule.next_run = schedule.calculate_next_run()
+            db.commit()
+
     finally:
         db.close()

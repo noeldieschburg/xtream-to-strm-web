@@ -23,6 +23,7 @@ import M3UScheduling from './pages/m3u/M3UScheduling';
 import PlexAccounts from './pages/plex/PlexAccounts';
 import PlexServers from './pages/plex/PlexServers';
 import PlexSelection from './pages/plex/PlexSelection';
+import PlexScheduling from './pages/plex/PlexScheduling';
 
 // Download Pages
 import Downloads from './pages/Downloads';
@@ -227,6 +228,13 @@ function Layout({ children }: { children: React.ReactNode }) {
                                 >
                                     <span>Library Selection</span>
                                 </Link>
+                                <Link
+                                    to="/plex/scheduling"
+                                    className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${location.pathname === '/plex/scheduling' ? 'bg-accent text-accent-foreground' : 'hover:bg-accent hover:text-accent-foreground'
+                                        }`}
+                                >
+                                    <span>Scheduling</span>
+                                </Link>
                             </div>
                         )}
                     </div>
@@ -343,6 +351,7 @@ function App() {
                 <Route path="/plex/accounts" element={<ProtectedRoute><Layout><PlexAccounts /></Layout></ProtectedRoute>} />
                 <Route path="/plex/servers" element={<ProtectedRoute><Layout><PlexServers /></Layout></ProtectedRoute>} />
                 <Route path="/plex/selection" element={<ProtectedRoute><Layout><PlexSelection /></Layout></ProtectedRoute>} />
+                <Route path="/plex/scheduling" element={<ProtectedRoute><Layout><PlexScheduling /></Layout></ProtectedRoute>} />
 
                 {/* Downloads */}
                 <Route path="/downloads/selection" element={<ProtectedRoute><Layout><DownloadSelection /></Layout></ProtectedRoute>} />

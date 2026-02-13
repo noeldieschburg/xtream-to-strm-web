@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.endpoints import config, sync, login, selection, logs, scheduler, subscriptions, admin, m3u_sources, m3u_selection, dashboard, m3u_sync, downloads, jellyfin, plex
+from app.api.endpoints import config, sync, login, selection, logs, scheduler, subscriptions, admin, m3u_sources, m3u_selection, dashboard, m3u_sync, downloads, jellyfin, plex, plex_scheduler
 
 api_router = APIRouter()
 api_router.include_router(login.router, tags=["login"])
@@ -18,3 +18,4 @@ from app.api.api_v1.endpoints import live
 api_router.include_router(live.router, prefix="/live", tags=["live"])
 api_router.include_router(jellyfin.router, prefix="/jellyfin", tags=["jellyfin"])
 api_router.include_router(plex.router, prefix="/plex", tags=["plex"])
+api_router.include_router(plex_scheduler.router, prefix="/plex-scheduler", tags=["plex-scheduler"])
