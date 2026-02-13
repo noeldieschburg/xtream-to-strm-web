@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, Check, Loader2, Play, Film, Tv, Library, Save } from 'lucide-react';
+import { RefreshCw, Check, Loader2, Play, Film, Tv, Library, Save, StopCircle } from 'lucide-react';
 import api from '@/lib/api';
 
 interface PlexAccount {
@@ -196,6 +196,16 @@ export default function PlexSelection() {
         }
     };
 
+    const stopSync = async (type: 'movies' | 'series') => {
+        if (!selectedServerId) return;
+        try {
+            await api.post(`/plex/sync/stop/${selectedServerId}/${type}`);
+            await fetchSyncStatus(selectedServerId);
+        } catch (error) {
+            console.error(`Failed to stop ${type} sync`, error);
+        }
+    };
+
     const getStatusBadge = (status: string) => {
         switch (status) {
             case 'running':
@@ -307,14 +317,25 @@ export default function PlexSelection() {
                                 </CardTitle>
                                 <div className="flex items-center gap-2">
                                     {moviesStatus && getStatusBadge(moviesStatus.status)}
-                                    <Button
-                                        onClick={() => triggerSync('movies')}
-                                        disabled={syncing || moviesStatus?.status === 'running'}
-                                        size="sm"
-                                    >
-                                        <Play className="w-4 h-4 mr-2" />
-                                        Sync Movies
-                                    </Button>
+                                    {moviesStatus?.status === 'running' ? (
+                                        <Button
+                                            onClick={() => stopSync('movies')}
+                                            variant="destructive"
+                                            size="sm"
+                                        >
+                                            <StopCircle className="w-4 h-4 mr-2" />
+                                            Stop Sync
+                                        </Button>
+                                    ) : (
+                                        <Button
+                                            onClick={() => triggerSync('movies')}
+                                            disabled={syncing}
+                                            size="sm"
+                                        >
+                                            <Play className="w-4 h-4 mr-2" />
+                                            Sync Movies
+                                        </Button>
+                                    )}
                                 </div>
                             </CardHeader>
                             <CardContent>
@@ -367,14 +388,25 @@ export default function PlexSelection() {
                                 </CardTitle>
                                 <div className="flex items-center gap-2">
                                     {seriesStatus && getStatusBadge(seriesStatus.status)}
-                                    <Button
-                                        onClick={() => triggerSync('series')}
-                                        disabled={syncing || seriesStatus?.status === 'running'}
-                                        size="sm"
-                                    >
-                                        <Play className="w-4 h-4 mr-2" />
-                                        Sync Series
-                                    </Button>
+                                    {seriesStatus?.status === 'running' ? (
+                                        <Button
+                                            onClick={() => stopSync('series')}
+                                            variant="destructive"
+                                            size="sm"
+                                        >
+                                            <StopCircle className="w-4 h-4 mr-2" />
+                                            Stop Sync
+                                        </Button>
+                                    ) : (
+                                        <Button
+                                            onClick={() => triggerSync('series')}
+                                            disabled={syncing}
+                                            size="sm"
+                                        >
+                                            <Play className="w-4 h-4 mr-2" />
+                                            Sync Series
+                                        </Button>
+                                    )}
                                 </div>
                             </CardHeader>
                             <CardContent>
