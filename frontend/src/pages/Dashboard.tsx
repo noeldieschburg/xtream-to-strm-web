@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Film, Tv, Activity, HardDrive, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { Film, Tv, HardDrive, Loader2, CheckCircle, XCircle } from 'lucide-react';
 import api from '@/lib/api';
 
 interface RunningTask {
