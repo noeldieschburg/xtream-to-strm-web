@@ -18,6 +18,12 @@ from typing import Dict, Tuple, Any
 import time
 import base64
 import urllib.parse
+import hashlib
+
+
+def stable_hash(s: str) -> str:
+    """Generate a stable hash for a string (deterministic across processes)."""
+    return hashlib.md5(s.encode()).hexdigest()[:16]
 
 # Global cache for HLS sessions and playlists
 # Session cache: {session_key: (httpx.AsyncClient, last_used_timestamp)}
@@ -123,7 +129,7 @@ async def prefetch_and_cache_variants(
         for url, content in results:
             if content:
                 # Generate a cache key based on URL hash
-                cache_key = f"{server_id}_{rating_key}_{hash(url)}"
+                cache_key = f"{server_id}_{rating_key}_{stable_hash(url)}"
 
                 # Process the variant to rewrite segment URLs (segments stay direct)
                 # and identify any nested playlists
@@ -149,7 +155,7 @@ async def prefetch_and_cache_variants(
 
             if is_playlist:
                 # Point to our cache endpoint
-                cache_key = f"{server_id}_{rating_key}_{hash(original_url)}"
+                cache_key = f"{server_id}_{rating_key}_{stable_hash(original_url)}"
                 encoded_key = base64.urlsafe_b64encode(cache_key.encode()).decode()
                 line = f"{proxy_base_url}/api/v1/plex/hls-cache/{server_id}/{rating_key}?cache_key={encoded_key}&key={key or ''}"
             else:
@@ -203,7 +209,7 @@ async def process_and_cache_playlist(
 
             if is_playlist:
                 nested_playlists.append(full_url)
-                cache_key = f"{server_id}_{rating_key}_{hash(full_url)}"
+                cache_key = f"{server_id}_{rating_key}_{stable_hash(full_url)}"
                 encoded_key = base64.urlsafe_b64encode(cache_key.encode()).decode()
                 line = f"{proxy_base_url}/api/v1/plex/hls-cache/{server_id}/{rating_key}?cache_key={encoded_key}&key={key or ''}"
             else:
@@ -217,7 +223,7 @@ async def process_and_cache_playlist(
             try:
                 resp = await client.get(url)
                 resp.raise_for_status()
-                cache_key = f"{server_id}_{rating_key}_{hash(url)}"
+                cache_key = f"{server_id}_{rating_key}_{stable_hash(url)}"
                 # For nested playlists (like segment lists), just rewrite URLs
                 nested_content = resp.text
                 rewritten_nested = await process_and_cache_playlist(
