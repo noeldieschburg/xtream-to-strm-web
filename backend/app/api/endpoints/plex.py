@@ -62,6 +62,7 @@ async def cache_playlist(cache_key: str, content: str, content_type: str = "appl
     """Store a playlist in cache."""
     async with _playlist_cache_lock:
         _playlist_cache[cache_key] = (content, time.time(), content_type)
+        logger.info(f"HLS cache STORED: {cache_key} (size={len(content)}, total_cached={len(_playlist_cache)})")
 
 
 async def get_cached_playlist(cache_key: str) -> Tuple[str, str] | None:
@@ -71,11 +72,15 @@ async def get_cached_playlist(cache_key: str) -> Tuple[str, str] | None:
         now = time.time()
         expired = [k for k, (_, ts, _) in _playlist_cache.items() if now - ts > PLAYLIST_CACHE_TTL]
         for k in expired:
+            logger.info(f"HLS cache EXPIRED: {k}")
             del _playlist_cache[k]
 
         if cache_key in _playlist_cache:
             content, _, content_type = _playlist_cache[cache_key]
+            logger.info(f"HLS cache HIT: {cache_key}")
             return content, content_type
+
+        logger.warning(f"HLS cache MISS: {cache_key} (available keys: {list(_playlist_cache.keys())[:5]}...)")
         return None
 
 
@@ -112,14 +117,19 @@ async def prefetch_and_cache_variants(
                         full_url = f"{plex_base_url}{path}?X-Plex-Token={access_token}"
                     variant_urls.append(full_url)
 
+    logger.info(f"HLS prefetch: Found {len(variant_urls)} variant URLs to prefetch")
+    for i, url in enumerate(variant_urls):
+        logger.debug(f"HLS prefetch variant[{i}]: {url[:100]}...")
+
     # Prefetch all variants concurrently
     async def fetch_variant(url: str) -> Tuple[str, str | None]:
         try:
             resp = await client.get(url)
             resp.raise_for_status()
+            logger.info(f"HLS prefetch SUCCESS: {stable_hash(url)} (len={len(resp.text)})")
             return url, resp.text
         except Exception as e:
-            logger.error(f"Failed to prefetch variant {url}: {e}")
+            logger.error(f"HLS prefetch FAILED: {url[:80]}... - {e}")
             return url, None
 
     if variant_urls:
@@ -157,12 +167,14 @@ async def prefetch_and_cache_variants(
                 # Point to our cache endpoint
                 cache_key = f"{server_id}_{rating_key}_{stable_hash(original_url)}"
                 encoded_key = base64.urlsafe_b64encode(cache_key.encode()).decode()
+                logger.info(f"HLS rewrite: {cache_key} -> encoded={encoded_key}")
                 line = f"{proxy_base_url}/api/v1/plex/hls-cache/{server_id}/{rating_key}?cache_key={encoded_key}&key={key or ''}"
             else:
                 # Segments go directly to Plex
                 line = original_url
         rewritten_lines.append(line)
 
+    logger.info(f"HLS master rewritten with {len([l for l in rewritten_lines if 'hls-cache' in l])} cache URLs")
     return '\n'.join(rewritten_lines)
 
 
