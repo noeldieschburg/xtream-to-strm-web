@@ -40,7 +40,8 @@ def get_config(db: Session = Depends(get_db)):
     # Convert string booleans to actual booleans for Pydantic
     bool_fields = [
         "FORMAT_DATE_IN_TITLE", "CLEAN_NAME", "SERIES_USE_SEASON_FOLDERS",
-        "SERIES_USE_CATEGORY_FOLDERS", "SERIES_INCLUDE_NAME_IN_FILENAME"
+        "SERIES_USE_CATEGORY_FOLDERS", "SERIES_INCLUDE_NAME_IN_FILENAME",
+        "PLEX_HLS_PROXY_MODE"
     ]
     for field in bool_fields:
         if field in settings:
@@ -96,6 +97,8 @@ def update_config(config: ConfigUpdate, db: Session = Depends(get_db)):
         updates["PLEX_PROXY_BASE_URL"] = config.PLEX_PROXY_BASE_URL
     if config.PLEX_SHARED_KEY is not None:
         updates["PLEX_SHARED_KEY"] = config.PLEX_SHARED_KEY
+    if config.PLEX_HLS_PROXY_MODE is not None:
+        updates["PLEX_HLS_PROXY_MODE"] = str(config.PLEX_HLS_PROXY_MODE).lower()
 
     for key, value in updates.items():
         setting = db.query(SettingsModel).filter(SettingsModel.key == key).first()

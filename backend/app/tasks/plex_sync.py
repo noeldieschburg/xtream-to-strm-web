@@ -307,9 +307,10 @@ async def process_plex_movies(db: Session, client: PlexClient, plex_server, fm: 
                     fm.ensure_directory(target_dir)
 
                     # Build proxy URL for streaming (includes shared key for authentication)
+                    # The /stream.m3u8 suffix helps ExoPlayer-based clients detect HLS content
                     rating_key = movie.get("rating_key")
                     key_param = f"?key={shared_key}" if shared_key else ""
-                    stream_url = f"{proxy_base_url}/api/v1/plex/proxy/{server_id}/{rating_key}{key_param}"
+                    stream_url = f"{proxy_base_url}/api/v1/plex/proxy/{server_id}/{rating_key}/stream.m3u8{key_param}"
 
                     # Write STRM
                     strm_path = os.path.join(target_dir, f"{folder_name}.strm")
@@ -504,9 +505,10 @@ async def process_plex_series(db: Session, client: PlexClient, plex_server, fm: 
                                 filename = formatted_ep
 
                             # Build proxy URL for streaming (includes shared key for authentication)
+                            # The /stream.m3u8 suffix helps ExoPlayer-based clients detect HLS content
                             ep_rating_key = episode.get("rating_key")
                             key_param = f"?key={shared_key}" if shared_key else ""
-                            stream_url = f"{proxy_base_url}/api/v1/plex/proxy/{server_id}/{ep_rating_key}{key_param}"
+                            stream_url = f"{proxy_base_url}/api/v1/plex/proxy/{server_id}/{ep_rating_key}/stream.m3u8{key_param}"
 
                             # Write STRM
                             strm_path = os.path.join(season_dir, f"{filename}.strm")

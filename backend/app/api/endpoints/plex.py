@@ -10,8 +10,227 @@ Handles Plex account management, server discovery, library selection, and sync o
 - Library sync and selection
 - Sync trigger and status
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import RedirectResponse
+import httpx
+import asyncio
+from typing import Dict, Tuple, Any
+import time
+import base64
+import urllib.parse
+
+# Global cache for HLS sessions and playlists
+# Session cache: {session_key: (httpx.AsyncClient, last_used_timestamp)}
+_hls_clients: Dict[str, Tuple[httpx.AsyncClient, float]] = {}
+_hls_clients_lock = asyncio.Lock()
+HLS_SESSION_TTL = 300  # 5 minutes
+
+# Playlist content cache: {cache_key: (content, timestamp, content_type)}
+_playlist_cache: Dict[str, Tuple[str, float, str]] = {}
+_playlist_cache_lock = asyncio.Lock()
+PLAYLIST_CACHE_TTL = 60  # 1 minute - playlists are short-lived
+
+
+async def get_hls_client(session_key: str) -> httpx.AsyncClient:
+    """Get or create a persistent httpx client for HLS proxying."""
+    async with _hls_clients_lock:
+        now = time.time()
+        # Cleanup old sessions
+        expired = [k for k, (_, ts) in _hls_clients.items() if now - ts > HLS_SESSION_TTL]
+        for k in expired:
+            client, _ = _hls_clients.pop(k)
+            await client.aclose()
+
+        # Get or create client
+        if session_key in _hls_clients:
+            client, _ = _hls_clients[session_key]
+            _hls_clients[session_key] = (client, now)
+            return client
+        else:
+            client = httpx.AsyncClient(follow_redirects=True, timeout=30.0)
+            _hls_clients[session_key] = (client, now)
+            return client
+
+
+async def cache_playlist(cache_key: str, content: str, content_type: str = "application/vnd.apple.mpegurl"):
+    """Store a playlist in cache."""
+    async with _playlist_cache_lock:
+        _playlist_cache[cache_key] = (content, time.time(), content_type)
+
+
+async def get_cached_playlist(cache_key: str) -> Tuple[str, str] | None:
+    """Get a cached playlist if still valid."""
+    async with _playlist_cache_lock:
+        # Cleanup expired entries
+        now = time.time()
+        expired = [k for k, (_, ts, _) in _playlist_cache.items() if now - ts > PLAYLIST_CACHE_TTL]
+        for k in expired:
+            del _playlist_cache[k]
+
+        if cache_key in _playlist_cache:
+            content, _, content_type = _playlist_cache[cache_key]
+            return content, content_type
+        return None
+
+
+async def prefetch_and_cache_variants(
+    client: httpx.AsyncClient,
+    master_content: str,
+    plex_base_url: str,
+    access_token: str,
+    server_id: int,
+    rating_key: int,
+    proxy_base_url: str,
+    key: str
+) -> str:
+    """
+    Parse master playlist, prefetch all variant playlists, cache them,
+    and return rewritten master playlist.
+    """
+    lines = master_content.split('\n')
+    rewritten_lines = []
+    variant_urls = []
+
+    # First pass: identify all variant playlist URLs
+    for line in lines:
+        if line and not line.startswith('#'):
+            is_playlist = line.endswith('.m3u8') or 'index.m3u8' in line
+            if is_playlist:
+                if line.startswith('http'):
+                    variant_urls.append(line)
+                else:
+                    path = line if line.startswith('/') else f"/{line}"
+                    if '?' in path:
+                        full_url = f"{plex_base_url}{path}&X-Plex-Token={access_token}"
+                    else:
+                        full_url = f"{plex_base_url}{path}?X-Plex-Token={access_token}"
+                    variant_urls.append(full_url)
+
+    # Prefetch all variants concurrently
+    async def fetch_variant(url: str) -> Tuple[str, str | None]:
+        try:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            return url, resp.text
+        except Exception as e:
+            logger.error(f"Failed to prefetch variant {url}: {e}")
+            return url, None
+
+    if variant_urls:
+        results = await asyncio.gather(*[fetch_variant(url) for url in variant_urls])
+
+        # Cache each variant and process its content to cache nested playlists
+        for url, content in results:
+            if content:
+                # Generate a cache key based on URL hash
+                cache_key = f"{server_id}_{rating_key}_{hash(url)}"
+
+                # Process the variant to rewrite segment URLs (segments stay direct)
+                # and identify any nested playlists
+                rewritten_variant = await process_and_cache_playlist(
+                    client, content, url, plex_base_url, access_token,
+                    server_id, rating_key, proxy_base_url, key
+                )
+                await cache_playlist(cache_key, rewritten_variant)
+
+    # Second pass: rewrite master playlist to point to cache
+    for line in lines:
+        if line and not line.startswith('#'):
+            is_playlist = line.endswith('.m3u8') or 'index.m3u8' in line
+
+            if line.startswith('http'):
+                original_url = line
+            else:
+                path = line if line.startswith('/') else f"/{line}"
+                if '?' in path:
+                    original_url = f"{plex_base_url}{path}&X-Plex-Token={access_token}"
+                else:
+                    original_url = f"{plex_base_url}{path}?X-Plex-Token={access_token}"
+
+            if is_playlist:
+                # Point to our cache endpoint
+                cache_key = f"{server_id}_{rating_key}_{hash(original_url)}"
+                encoded_key = base64.urlsafe_b64encode(cache_key.encode()).decode()
+                line = f"{proxy_base_url}/api/v1/plex/hls-cache/{server_id}/{rating_key}?cache_key={encoded_key}&key={key or ''}"
+            else:
+                # Segments go directly to Plex
+                line = original_url
+        rewritten_lines.append(line)
+
+    return '\n'.join(rewritten_lines)
+
+
+async def process_and_cache_playlist(
+    client: httpx.AsyncClient,
+    content: str,
+    playlist_url: str,
+    plex_base_url: str,
+    access_token: str,
+    server_id: int,
+    rating_key: int,
+    proxy_base_url: str,
+    key: str
+) -> str:
+    """
+    Process a playlist content: rewrite URLs and prefetch any nested playlists.
+    Segments go directly to Plex, playlists go through cache.
+    """
+    lines = content.split('\n')
+    rewritten_lines = []
+    nested_playlists = []
+
+    base_url = playlist_url.rsplit('/', 1)[0]
+
+    for line in lines:
+        if line and not line.startswith('#'):
+            is_playlist = line.endswith('.m3u8') or 'index.m3u8' in line
+
+            # Resolve URL
+            if line.startswith('http'):
+                full_url = line
+            elif line.startswith('/'):
+                parsed = urllib.parse.urlparse(playlist_url)
+                full_url = f"{parsed.scheme}://{parsed.netloc}{line}"
+            else:
+                full_url = f"{base_url}/{line}"
+
+            # Add token if needed
+            if 'X-Plex-Token' not in full_url:
+                if '?' in full_url:
+                    full_url += f"&X-Plex-Token={access_token}"
+                else:
+                    full_url += f"?X-Plex-Token={access_token}"
+
+            if is_playlist:
+                nested_playlists.append(full_url)
+                cache_key = f"{server_id}_{rating_key}_{hash(full_url)}"
+                encoded_key = base64.urlsafe_b64encode(cache_key.encode()).decode()
+                line = f"{proxy_base_url}/api/v1/plex/hls-cache/{server_id}/{rating_key}?cache_key={encoded_key}&key={key or ''}"
+            else:
+                # Segments go directly
+                line = full_url
+        rewritten_lines.append(line)
+
+    # Prefetch nested playlists
+    if nested_playlists:
+        async def fetch_nested(url: str):
+            try:
+                resp = await client.get(url)
+                resp.raise_for_status()
+                cache_key = f"{server_id}_{rating_key}_{hash(url)}"
+                # For nested playlists (like segment lists), just rewrite URLs
+                nested_content = resp.text
+                rewritten_nested = await process_and_cache_playlist(
+                    client, nested_content, url, plex_base_url, access_token,
+                    server_id, rating_key, proxy_base_url, key
+                )
+                await cache_playlist(cache_key, rewritten_nested)
+            except Exception as e:
+                logger.error(f"Failed to prefetch nested playlist {url}: {e}")
+
+        await asyncio.gather(*[fetch_nested(url) for url in nested_playlists])
+
+    return '\n'.join(rewritten_lines)
 from sqlalchemy.orm import Session
 from typing import List
 from datetime import datetime
@@ -440,8 +659,9 @@ def stop_plex_sync(server_id: int, sync_type: str, db: Session = Depends(deps.ge
 
 # --- Proxy Streaming ---
 
+@router.get("/proxy/{server_id}/{rating_key}/stream.m3u8")
 @router.get("/proxy/{server_id}/{rating_key}")
-def proxy_plex_stream(
+async def proxy_plex_stream(
     server_id: int,
     rating_key: int,
     key: str = None,
@@ -450,18 +670,18 @@ def proxy_plex_stream(
     db: Session = Depends(deps.get_db)
 ):
     """
-    Redirect to Plex streaming URL.
+    Proxy or redirect to Plex streaming URL.
 
-    This endpoint generates a valid Plex streaming URL and redirects to it.
-    Use this in STRM files for a stable URL that doesn't expose tokens.
-    Protected by PLEX_SHARED_KEY - must match to access.
+    If PLEX_HLS_PROXY_MODE is enabled, fetches the HLS playlist and rewrites URLs.
+    This is needed for clients like Findroid (ExoPlayer-based) that don't follow redirects.
+    Otherwise, returns a 302 redirect to Plex.
 
     @param server_id Database ID of the Plex server
     @param rating_key Plex rating key of the media
     @param key Shared key for authentication (must match PLEX_SHARED_KEY setting)
     @param direct_play 0=transcode allowed, 1=direct play only
     @param direct_stream 0=full transcode, 1=remux only
-    @returns HTTP 302 redirect to Plex streaming URL
+    @returns HLS playlist content or HTTP 302 redirect
     """
     # Verify shared key
     shared_key_setting = db.query(SettingsModel).filter(SettingsModel.key == "PLEX_SHARED_KEY").first()
@@ -474,8 +694,11 @@ def proxy_plex_stream(
     if not server:
         raise HTTPException(status_code=404, detail="Server not found")
 
-    # Build streaming URL
-    import urllib.parse
+    # Check if HLS proxy mode is enabled
+    hls_proxy_setting = db.query(SettingsModel).filter(SettingsModel.key == "PLEX_HLS_PROXY_MODE").first()
+    hls_proxy_enabled = hls_proxy_setting and hls_proxy_setting.value.lower() == "true"
+
+    # Build Plex streaming URL
     params = {
         'path': f'/library/metadata/{rating_key}',
         'mediaIndex': '0',
@@ -495,6 +718,189 @@ def proxy_plex_stream(
     }
 
     query_string = urllib.parse.urlencode(params)
-    stream_url = f"{server.uri}/video/:/transcode/universal/start.m3u8?{query_string}"
+    plex_url = f"{server.uri}/video/:/transcode/universal/start.m3u8?{query_string}"
 
-    return RedirectResponse(url=stream_url, status_code=302)
+    if not hls_proxy_enabled:
+        # Mode redirect (default behavior)
+        return RedirectResponse(url=plex_url, status_code=302)
+
+    # HLS Proxy Mode - fetch playlist, prefetch variants, and cache everything
+    proxy_base_setting = db.query(SettingsModel).filter(SettingsModel.key == "PLEX_PROXY_BASE_URL").first()
+    proxy_base_url = (proxy_base_setting.value if proxy_base_setting else "").rstrip('/')
+
+    session_key = f"{server_id}_{rating_key}_{int(time.time())}"  # Unique session per request
+    plex_base_url = server.uri.rstrip('/')
+
+    try:
+        client = await get_hls_client(session_key)
+        response = await client.get(plex_url)
+        response.raise_for_status()
+
+        master_content = response.text
+
+        # Prefetch all variant playlists and cache them
+        # This uses the SAME httpx client/connection to maintain Plex session
+        rewritten_content = await prefetch_and_cache_variants(
+            client=client,
+            master_content=master_content,
+            plex_base_url=plex_base_url,
+            access_token=server.access_token,
+            server_id=server_id,
+            rating_key=rating_key,
+            proxy_base_url=proxy_base_url,
+            key=key or ''
+        )
+
+        return Response(
+            content=rewritten_content,
+            media_type="application/vnd.apple.mpegurl",
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Cache-Control": "no-cache"
+            }
+        )
+    except httpx.HTTPError as e:
+        logger.error(f"HLS proxy error: {e}")
+        raise HTTPException(status_code=502, detail=f"Failed to fetch HLS playlist: {str(e)}")
+
+
+@router.get("/hls-cache/{server_id}/{rating_key}")
+async def hls_cache(
+    server_id: int,
+    rating_key: int,
+    cache_key: str,
+    key: str = None,
+    db: Session = Depends(deps.get_db)
+):
+    """
+    Serve cached HLS playlist content.
+
+    Returns pre-fetched and cached playlist content. This endpoint is used
+    to serve variant playlists that were pre-fetched when the master playlist
+    was requested, avoiding Plex session timeout issues.
+
+    @param server_id Database ID of the Plex server
+    @param rating_key Plex rating key
+    @param cache_key Base64-encoded cache key
+    @param key Shared key for authentication
+    """
+    # Verify shared key
+    shared_key_setting = db.query(SettingsModel).filter(SettingsModel.key == "PLEX_SHARED_KEY").first()
+    expected_key = shared_key_setting.value if shared_key_setting else None
+
+    if expected_key and key != expected_key:
+        raise HTTPException(status_code=403, detail="Invalid or missing shared key")
+
+    # Decode cache key
+    try:
+        decoded_cache_key = base64.urlsafe_b64decode(cache_key.encode()).decode()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid cache key encoding")
+
+    # Try to get from cache
+    cached = await get_cached_playlist(decoded_cache_key)
+    if cached:
+        content, content_type = cached
+        return Response(
+            content=content,
+            media_type=content_type,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Cache-Control": "no-cache"
+            }
+        )
+
+    # Cache miss - this shouldn't happen if prefetch worked correctly
+    logger.warning(f"HLS cache miss for key: {decoded_cache_key}")
+    raise HTTPException(status_code=404, detail="Playlist not found in cache. Try refreshing the stream.")
+
+
+@router.get("/hls-proxy/{server_id}/{rating_key}")
+async def hls_proxy(
+    server_id: int,
+    rating_key: int,
+    url: str,
+    key: str = None,
+    db: Session = Depends(deps.get_db)
+):
+    """
+    Fallback HLS proxy endpoint (legacy).
+
+    This endpoint is kept for backwards compatibility but the new caching
+    approach (/hls-cache/) is preferred. If a request comes here, it means
+    the cache didn't have the content, so we try to fetch it directly.
+
+    @param server_id Database ID of the Plex server
+    @param rating_key Plex rating key
+    @param url Base64-encoded URL to fetch from Plex
+    @param key Shared key for authentication
+    """
+    # Verify shared key
+    shared_key_setting = db.query(SettingsModel).filter(SettingsModel.key == "PLEX_SHARED_KEY").first()
+    expected_key = shared_key_setting.value if shared_key_setting else None
+
+    if expected_key and key != expected_key:
+        raise HTTPException(status_code=403, detail="Invalid or missing shared key")
+
+    server = db.query(PlexServer).filter(PlexServer.id == server_id).first()
+    if not server:
+        raise HTTPException(status_code=404, detail="Server not found")
+
+    # Decode the URL
+    try:
+        decoded_url = base64.urlsafe_b64decode(url.encode()).decode()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid URL encoding")
+
+    # Get proxy base URL
+    proxy_base_setting = db.query(SettingsModel).filter(SettingsModel.key == "PLEX_PROXY_BASE_URL").first()
+    proxy_base_url = (proxy_base_setting.value if proxy_base_setting else "").rstrip('/')
+
+    session_key = f"{server_id}_{rating_key}"
+    plex_base_url = server.uri.rstrip('/')
+
+    try:
+        client = await get_hls_client(session_key)
+        response = await client.get(decoded_url)
+        response.raise_for_status()
+
+        content_type = response.headers.get("content-type", "")
+
+        # If it's a playlist (.m3u8), rewrite URLs
+        if "mpegurl" in content_type or decoded_url.endswith(".m3u8"):
+            content = response.text
+
+            # Use the process function for consistency
+            rewritten_content = await process_and_cache_playlist(
+                client=client,
+                content=content,
+                playlist_url=decoded_url,
+                plex_base_url=plex_base_url,
+                access_token=server.access_token,
+                server_id=server_id,
+                rating_key=rating_key,
+                proxy_base_url=proxy_base_url,
+                key=key or ''
+            )
+
+            return Response(
+                content=rewritten_content,
+                media_type="application/vnd.apple.mpegurl",
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Cache-Control": "no-cache"
+                }
+            )
+        else:
+            # Binary content (segments) - this shouldn't happen as segments go direct
+            return Response(
+                content=response.content,
+                media_type=content_type or "video/mp2t",
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Cache-Control": "no-cache"
+                }
+            )
+    except httpx.HTTPError as e:
+        logger.error(f"HLS proxy error for {decoded_url}: {e}")
+        raise HTTPException(status_code=502, detail=f"Failed to fetch HLS content: {str(e)}")

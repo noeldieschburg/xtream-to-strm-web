@@ -78,6 +78,7 @@ Built with modern technologies, it provides an intuitive interface for managing 
 - **Shared Server Support**: Works with servers you don't own (transcoding URLs)
 - **Library Selection**: Choose specific Movie and Show libraries to sync
 - **Secure Proxy**: Built-in proxy endpoint that hides Plex tokens from STRM files
+- **HLS Proxy Mode**: Transparent proxy for clients that don't follow redirects (e.g., Findroid/ExoPlayer)
 - **Metadata Extraction**: TMDB/IMDB IDs, genres, actors, ratings from Plex
 - **NFO Generation**: Full metadata files compatible with Jellyfin/Kodi
 - **Configurable Output**: Customize output directories per server
@@ -203,8 +204,11 @@ Click **Sync Movies** or **Sync Series** to generate your files!
 - Go to **Administration** → **Plex Settings**
 - Set **Proxy Base URL** to an IP/hostname accessible by Jellyfin (not localhost)
 - Optionally set a **Shared Key** to protect the proxy endpoint
+- Enable **HLS Proxy Mode** if using clients like Findroid that don't follow HTTP redirects
 
 > **Note:** Plex integration uses a proxy endpoint to hide authentication tokens from STRM files. This is essential for shared servers where direct file access is blocked.
+
+> **HLS Proxy Mode:** Some clients (like Findroid, based on ExoPlayer) don't properly follow HTTP 302 redirects for HLS streams. When enabled, this mode proxies the HLS playlists (.m3u8) through your server while video segments (.ts) still stream directly from Plex, minimizing bandwidth impact on your server.
 
 ### 7. Configure Your Media Server
 

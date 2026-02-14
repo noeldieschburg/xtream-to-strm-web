@@ -21,6 +21,7 @@ class ConfigUpdate(BaseModel):
     MOVIE_USE_CATEGORY_FOLDERS: Optional[bool] = None
     PLEX_PROXY_BASE_URL: Optional[str] = None
     PLEX_SHARED_KEY: Optional[str] = None
+    PLEX_HLS_PROXY_MODE: Optional[bool] = None
 
 class ConfigResponse(BaseModel):
     XC_URL: Optional[str] = None
@@ -41,6 +42,7 @@ class ConfigResponse(BaseModel):
     MOVIE_USE_CATEGORY_FOLDERS: Optional[bool] = None
     PLEX_PROXY_BASE_URL: Optional[str] = None
     PLEX_SHARED_KEY: Optional[str] = None
+    PLEX_HLS_PROXY_MODE: Optional[bool] = None
 
 class SyncStatusResponse(BaseModel):
     id: Optional[int] = None

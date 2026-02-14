@@ -36,6 +36,7 @@ export default function Administration() {
     // Plex Settings State
     const [plexProxyBaseUrl, setPlexProxyBaseUrl] = useState('http://localhost:8000');
     const [plexSharedKey, setPlexSharedKey] = useState('');
+    const [plexHlsProxyMode, setPlexHlsProxyMode] = useState(false);
     const [plexSettingsLoading, setPlexSettingsLoading] = useState(false);
 
     // Jellyfin Settings State
@@ -68,6 +69,7 @@ export default function Administration() {
                 setUseMovieCategoryFolders(response.data.MOVIE_USE_CATEGORY_FOLDERS !== false);
                 setPlexProxyBaseUrl(response.data.PLEX_PROXY_BASE_URL || 'http://localhost:8000');
                 setPlexSharedKey(response.data.PLEX_SHARED_KEY || '');
+                setPlexHlsProxyMode(response.data.PLEX_HLS_PROXY_MODE === true);
 
                 // Load Jellyfin Settings
                 try {
@@ -122,7 +124,8 @@ export default function Administration() {
         try {
             await api.post('/config', {
                 PLEX_PROXY_BASE_URL: plexProxyBaseUrl,
-                PLEX_SHARED_KEY: plexSharedKey
+                PLEX_SHARED_KEY: plexSharedKey,
+                PLEX_HLS_PROXY_MODE: plexHlsProxyMode
             });
             toast.success('Plex settings saved successfully!');
         } catch (error) {
@@ -666,6 +669,20 @@ export default function Administration() {
                                     Use the <a href="/plex/selection" className="underline hover:text-yellow-900 dark:hover:text-yellow-300">Plex Selection page</a> to trigger a new sync.
                                 </p>
                             </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-4 border-t">
+                            <div className="space-y-0.5">
+                                <Label>HLS Proxy Mode</Label>
+                                <p className="text-sm text-muted-foreground">
+                                    Enable for clients that don't follow redirects (e.g., Findroid).
+                                    Proxies HLS playlists through this server instead of redirecting.
+                                </p>
+                            </div>
+                            <Switch
+                                checked={plexHlsProxyMode}
+                                onCheckedChange={setPlexHlsProxyMode}
+                            />
                         </div>
 
                         <Button
