@@ -23,13 +23,53 @@ class FileManager:
     def ensure_directory(self, path: str):
         os.makedirs(path, exist_ok=True)
 
-    async def write_strm(self, path: str, url: str):
+    async def write_strm(self, path: str, url: str) -> bool:
+        """
+        Write STRM file only if content has changed.
+
+        @param path Path to the STRM file
+        @param url URL content to write
+        @returns True if file was written, False if unchanged
+        """
+        # Check if file exists and has the same content
+        if os.path.exists(path):
+            try:
+                async with aiofiles.open(path, 'r') as f:
+                    existing_content = await f.read()
+                if existing_content.strip() == url.strip():
+                    return False  # Content unchanged, skip write
+            except Exception:
+                pass  # If we can't read, just overwrite
+
         async with aiofiles.open(path, 'w') as f:
             await f.write(url)
+        return True
 
-    async def write_nfo(self, path: str, content: str):
+    async def write_nfo(self, path: str, content: str, skip_if_exists: bool = False) -> bool:
+        """
+        Write NFO file only if content has changed.
+
+        @param path Path to the NFO file
+        @param content NFO XML content to write
+        @param skip_if_exists If True, never overwrite existing NFO files
+        @returns True if file was written, False if unchanged/skipped
+        """
+        if os.path.exists(path):
+            if skip_if_exists:
+                return False  # Never overwrite existing NFO files
+
+            # Check if content has changed
+            try:
+                async with aiofiles.open(path, 'r') as f:
+                    existing_content = await f.read()
+                if existing_content.strip() == content.strip():
+                    return False  # Content unchanged, skip write
+            except Exception:
+                pass  # If we can't read, just overwrite
+
         async with aiofiles.open(path, 'w') as f:
             await f.write(content)
+        return True
 
     async def delete_file(self, path: str):
         if os.path.exists(path):

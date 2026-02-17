@@ -264,11 +264,11 @@ async def process_series(db: Session, xc: XtreamClient, fm: FileManager, subscri
     from app.models.settings import SettingsModel
     settings_rows = db.query(SettingsModel).all()
     settings = {s.key: s.value for s in settings_rows}
-    
+
     prefix_regex = settings.get("PREFIX_REGEX")
     format_date = settings.get("FORMAT_DATE_IN_TITLE") == "true"
     clean_name = settings.get("CLEAN_NAME") == "true"
-    
+
     use_season_folders = settings.get("SERIES_USE_SEASON_FOLDERS", "true") == "true"
     include_series_name = settings.get("SERIES_INCLUDE_NAME_IN_FILENAME", "false") == "true"
     use_category_folders = settings.get("SERIES_USE_CATEGORY_FOLDERS", "true") == "true"
@@ -278,11 +278,11 @@ async def process_series(db: Session, xc: XtreamClient, fm: FileManager, subscri
         SyncState.subscription_id == subscription_id,
         SyncState.type == SyncType.SERIES
     ).first()
-    
+
     if not sync_state:
         sync_state = SyncState(subscription_id=subscription_id, type=SyncType.SERIES)
         db.add(sync_state)
-    
+
     sync_state.status = SyncStatus.RUNNING
     sync_state.last_sync = datetime.utcnow()
     db.commit()
@@ -298,33 +298,31 @@ async def process_series(db: Session, xc: XtreamClient, fm: FileManager, subscri
             SelectedCategory.subscription_id == subscription_id,
             SelectedCategory.type == "series"
         ).all()
-        
+
         if selected_cats:
             selected_ids = {s.category_id for s in selected_cats}
             all_series = [s for s in all_series if s['category_id'] in selected_ids]
-        
+
         cached_series = {s.series_id: s for s in db.query(SeriesCache).filter(SeriesCache.subscription_id == subscription_id).all()}
-        
-        to_add_update = []
+
+        # Load episode cache for this subscription
+        # Key: (series_id, episode_id) -> EpisodeCache
+        all_cached_episodes = db.query(EpisodeCache).filter(
+            EpisodeCache.subscription_id == subscription_id
+        ).all()
+        cached_episodes = {(e.series_id, e.episode_id): e for e in all_cached_episodes}
+
         to_delete = []
         current_ids = set()
 
         for series in all_series:
             series_id = int(series['series_id'])
             current_ids.add(series_id)
-            
-            cached = cached_series.get(series_id)
-            if not cached:
-                to_add_update.append(series)
-            else:
-                if cached.name != series['name']:
-                    to_add_update.append(series)
 
         for series_id, cached in cached_series.items():
             if series_id not in current_ids:
                 to_delete.append(cached)
 
-        # Deletions
         # Deletions
         for series in to_delete:
             cat_name = cat_map.get(series.category_id, "Uncategorized")
@@ -332,14 +330,24 @@ async def process_series(db: Session, xc: XtreamClient, fm: FileManager, subscri
                 {"name": series.name, "tmdb": series.tmdb_id},
                 cat_name, prefix_regex, format_date, clean_name, use_category_folders
             )
-            
+
             if os.path.exists(target_info["series_dir"]):
                 shutil.rmtree(target_info["series_dir"])
-            
+
             await fm.delete_directory_if_empty(target_info["cat_dir"])
+
+            # Delete episode cache for this series
+            db.query(EpisodeCache).filter(
+                EpisodeCache.subscription_id == subscription_id,
+                EpisodeCache.series_id == series.series_id
+            ).delete()
+
             db.delete(series)
 
-        # Process Additions/Updates Parallel
+        db.commit()
+
+        # Process ALL selected series (not just new/changed)
+        # Episode cache will prevent unnecessary file writes
         try:
             parallelism = int(settings.get("SYNC_PARALLELISM_SERIES", "5"))
         except ValueError:
@@ -348,7 +356,12 @@ async def process_series(db: Session, xc: XtreamClient, fm: FileManager, subscri
         batch_size = parallelism
         semaphore = asyncio.Semaphore(batch_size)
 
+        # Track statistics
+        total_episodes_added = 0
+        total_episodes_skipped = 0
+
         async def process_single_series(series):
+            nonlocal total_episodes_added, total_episodes_skipped
             async with semaphore:
                 try:
                     series_id = int(series['series_id'])
@@ -360,78 +373,101 @@ async def process_series(db: Session, xc: XtreamClient, fm: FileManager, subscri
                     info_response = await xc.get_series_info(str(series_id))
                     series_info = info_response.get('info', {})
                     episodes_data = info_response.get('episodes', {})
-                    
+
                     if isinstance(episodes_data, list):
                         episodes_data = {}
-                    
+
                     if series_info.get('tmdb_id'):
                          tmdb_id = series_info.get('tmdb_id')
                          series['tmdb'] = tmdb_id # For NFO
 
                     cat_name = cat_map.get(cat_id, "Uncategorized")
                     target_info = fm.get_series_target_info(series, cat_name, prefix_regex, format_date, clean_name, use_category_folders)
-                    
+
                     if use_category_folders:
                         fm.ensure_directory(target_info["cat_dir"])
-                    
+
                     series_dir = target_info["series_dir"]
                     fm.ensure_directory(series_dir)
-                    
-                    # Always create tvshow.nfo
+
+                    # Create tvshow.nfo (will be skipped if unchanged)
                     nfo_path = f"{series_dir}/tvshow.nfo"
                     await fm.write_nfo(nfo_path, fm.generate_show_nfo(series, prefix_regex, format_date, clean_name))
-                    
+
+                    episodes_to_cache = []
+
                     for season_key, episodes in episodes_data.items():
                         season_num = int(season_key)
-                        
+
                         # SEASON FOLDERS LOGIC
                         if use_season_folders:
                             season_dir_name = f"Season {season_num:02d}"
                             current_dir = f"{series_dir}/{season_dir_name}"
                         else:
                             current_dir = series_dir
-                            
+
                         fm.ensure_directory(current_dir)
-                        
+
                         for ep in episodes:
                             ep_num = int(ep['episode_num'])
-                            ep_id = ep['id']
+                            ep_id = int(ep['id'])
                             container = ep['container_extension']
                             title = ep.get('title', '')
-                            
-                            # Clean Episode Title
-                            # 1. Provide a hook to remove Series Name if it's prefixed
-                            # Just minimal heuristic: if title starts with series name, strip it
-                            # But risky. Let's rely on standard logic for now.
-                            
+
+                            # Check episode cache - skip if unchanged
+                            cache_key = (series_id, ep_id)
+                            cached_ep = cached_episodes.get(cache_key)
+
+                            if cached_ep:
+                                # Episode exists in cache - check if changed
+                                if (cached_ep.title == title and
+                                    cached_ep.container_extension == container and
+                                    cached_ep.season_num == season_num and
+                                    cached_ep.episode_num == ep_num):
+                                    # Episode unchanged, skip
+                                    total_episodes_skipped += 1
+                                    continue
+
+                            # New or changed episode - process it
+                            total_episodes_added += 1
+
                             formatted_ep = f"S{season_num:02d}E{ep_num:02d}"
                             safe_ep_title = ""
-                            
+
                             if title:
                                 # Remove extension if present in title
                                 if title.lower().endswith(f".{container}"):
                                     title = title[:-len(container)-1]
-                                    
+
                                 safe_ep_title = fm.sanitize_name(title)
-                            
+
                             if include_series_name:
                                  filename_base = f"{target_info['safe_series_name']} - {formatted_ep}"
                             else:
                                  filename_base = formatted_ep
-                                 
+
                             if safe_ep_title:
                                  filename = f"{filename_base} - {safe_ep_title}"
                             else:
                                  filename = filename_base
-                            
+
                             strm_path = f"{current_dir}/{filename}.strm"
                             url = xc.get_stream_url("series", str(ep_id), container)
                             await fm.write_strm(strm_path, url)
-                            
+
                             # Episode NFO
                             ep_nfo_path = f"{current_dir}/{filename}.nfo"
                             ep_nfo_content = fm.generate_episode_nfo(ep, name, season_num, ep_num)
                             await fm.write_nfo(ep_nfo_path, ep_nfo_content)
+
+                            # Queue episode for cache update
+                            episodes_to_cache.append({
+                                'episode_id': ep_id,
+                                'season_num': season_num,
+                                'episode_num': ep_num,
+                                'title': ep.get('title', ''),
+                                'container_extension': container
+                            })
 
                     return {
                         'action': 'update_cache',
@@ -439,7 +475,8 @@ async def process_series(db: Session, xc: XtreamClient, fm: FileManager, subscri
                             'series_id': series_id,
                             'name': name,
                             'category_id': cat_id,
-                            'tmdb_id': str(tmdb_id) if tmdb_id else None
+                            'tmdb_id': str(tmdb_id) if tmdb_id else None,
+                            'episodes': episodes_to_cache
                         }
                     }
                 except Exception as e:
@@ -447,25 +484,50 @@ async def process_series(db: Session, xc: XtreamClient, fm: FileManager, subscri
                      return None
 
         chunk_size = 20
-        for i in range(0, len(to_add_update), chunk_size):
-            chunk = to_add_update[i:i + chunk_size]
+        for i in range(0, len(all_series), chunk_size):
+            chunk = all_series[i:i + chunk_size]
             results = await asyncio.gather(*[process_single_series(s) for s in chunk])
-            
+
             for res in results:
                 if res and res['action'] == 'update_cache':
                     d = res['data']
-                    cached = cached_series.get(d['series_id'])
+                    series_id = d['series_id']
+
+                    # Update series cache
+                    cached = cached_series.get(series_id)
                     if not cached:
-                        cached = SeriesCache(subscription_id=subscription_id, series_id=d['series_id'])
+                        cached = SeriesCache(subscription_id=subscription_id, series_id=series_id)
                         db.add(cached)
-                    
+                        cached_series[series_id] = cached
+
                     cached.name = d['name']
                     cached.category_id = d['category_id']
                     cached.tmdb_id = d['tmdb_id']
-            
+
+                    # Update episode cache for new/changed episodes
+                    for ep_data in d.get('episodes', []):
+                        cache_key = (series_id, ep_data['episode_id'])
+                        cached_ep = cached_episodes.get(cache_key)
+
+                        if not cached_ep:
+                            cached_ep = EpisodeCache(
+                                subscription_id=subscription_id,
+                                series_id=series_id,
+                                episode_id=ep_data['episode_id']
+                            )
+                            db.add(cached_ep)
+                            cached_episodes[cache_key] = cached_ep
+
+                        cached_ep.season_num = ep_data['season_num']
+                        cached_ep.episode_num = ep_data['episode_num']
+                        cached_ep.title = ep_data['title']
+                        cached_ep.container_extension = ep_data['container_extension']
+
             db.commit()
 
-        sync_state.items_added = len(to_add_update)
+        logger.info(f"Series sync: {total_episodes_added} episodes added/updated, {total_episodes_skipped} skipped (unchanged)")
+
+        sync_state.items_added = total_episodes_added
         sync_state.items_deleted = len(to_delete)
         sync_state.status = SyncStatus.SUCCESS
         db.commit()

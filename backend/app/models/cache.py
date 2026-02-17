@@ -26,9 +26,10 @@ class SeriesCache(Base):
 class EpisodeCache(Base):
     __tablename__ = "episode_cache"
 
-    id = Column(Integer, primary_key=True, index=True) # This is the stream_id of the episode
+    id = Column(Integer, primary_key=True, index=True)
     subscription_id = Column(Integer, nullable=False, index=True)
-    series_id = Column(Integer, index=True) # This refers to the series_id from provider, not our DB id
+    series_id = Column(Integer, index=True)  # Xtream series_id
+    episode_id = Column(Integer, index=True)  # Xtream episode id (used for stream URL)
     season_num = Column(Integer)
     episode_num = Column(Integer)
     title = Column(String, nullable=True)
