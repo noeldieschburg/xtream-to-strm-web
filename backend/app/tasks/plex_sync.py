@@ -262,8 +262,27 @@ async def process_plex_movies(db: Session, client: PlexClient, plex_server, fm: 
                 current_keys.add(key)
 
                 cached = cached_movies.get(key)
-                if not cached or cached.updated_at != movie.get("updated_at"):
+                if not cached:
+                    # New movie - needs processing
                     to_add_update.append(movie)
+                else:
+                    # Existing movie - only reprocess if critical metadata changed
+                    # (title, year, or TMDB ID affect folder/filename)
+                    guid = movie.get("guid", {})
+                    new_tmdb = guid.get("tmdb")
+                    cached_tmdb = None
+                    if cached.guid:
+                        try:
+                            import ast
+                            cached_guid = ast.literal_eval(cached.guid)
+                            cached_tmdb = cached_guid.get("tmdb")
+                        except:
+                            pass
+
+                    if (cached.title != movie.get("title") or
+                        cached.year != str(movie.get("year", "")) or
+                        cached_tmdb != new_tmdb):
+                        to_add_update.append(movie)
 
             # Detect deletions
             to_delete = [c for k, c in cached_movies.items() if k not in current_keys]
@@ -432,8 +451,27 @@ async def process_plex_series(db: Session, client: PlexClient, plex_server, fm: 
                 current_keys.add(key)
 
                 cached = cached_series.get(key)
-                if not cached or cached.updated_at != show.get("updated_at"):
+                if not cached:
+                    # New show - needs processing
                     to_add_update.append(show)
+                else:
+                    # Existing show - only reprocess if critical metadata changed
+                    # or if season_count increased (new episodes likely)
+                    guid = show.get("guid", {})
+                    new_tmdb = guid.get("tmdb")
+                    cached_tmdb = None
+                    if cached.guid:
+                        try:
+                            import ast
+                            cached_guid = ast.literal_eval(cached.guid)
+                            cached_tmdb = cached_guid.get("tmdb")
+                        except:
+                            pass
+
+                    if (cached.title != show.get("title") or
+                        cached.year != str(show.get("year", "")) or
+                        cached_tmdb != new_tmdb):
+                        to_add_update.append(show)
 
             # Detect deletions
             to_delete = [c for k, c in cached_series.items() if k not in current_keys]
