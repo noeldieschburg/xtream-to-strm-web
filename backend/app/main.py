@@ -1,12 +1,24 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from app.api.api import api_router
 from app.core.config import settings
 from app.db.base import Base
 from app.db.session import engine
 import os
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan handler for startup/shutdown events."""
+    # Startup
+    yield
+    # Shutdown - cleanup HTTP clients
+    from app.api.endpoints.plex import close_http_client
+    await close_http_client()
 
 # Create tables first (for new installations)
 Base.metadata.create_all(bind=engine)
@@ -167,7 +179,8 @@ _ensure_schema_up_to_date()
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
-    openapi_url=f"{settings.API_V1_STR}/openapi.json"
+    openapi_url=f"{settings.API_V1_STR}/openapi.json",
+    lifespan=lifespan
 )
 
 # CORS
@@ -178,6 +191,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Trust proxy headers (X-Forwarded-Proto, X-Forwarded-For) from reverse proxies like HAProxy/nginx
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"])
 
 # Serve frontend static files
 static_dir = "/app/static"

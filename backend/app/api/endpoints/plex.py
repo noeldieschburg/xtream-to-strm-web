@@ -11,7 +11,7 @@ Handles Plex account management, server discovery, library selection, and sync o
 - Sync trigger and status
 """
 from fastapi import APIRouter, Depends, HTTPException, Response
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, StreamingResponse
 import httpx
 import asyncio
 from typing import Dict, Tuple, Any
@@ -19,6 +19,56 @@ import time
 import base64
 import urllib.parse
 import hashlib
+from contextlib import asynccontextmanager
+
+
+# Shared HTTP client for connection pooling - keeps connections alive
+_http_client: httpx.AsyncClient = None
+
+
+def get_http_client() -> httpx.AsyncClient:
+    """
+    Get or create a shared HTTP client with connection pooling.
+
+    Using a shared client improves performance by reusing TCP connections
+    and keeps Plex transcoding sessions alive.
+    """
+    global _http_client
+    if _http_client is None:
+        _http_client = httpx.AsyncClient(
+            follow_redirects=True,
+            timeout=httpx.Timeout(60.0, connect=10.0),  # Longer timeout for transcoding
+            limits=httpx.Limits(max_keepalive_connections=20, max_connections=50),
+            http2=True  # Use HTTP/2 when available for better multiplexing
+        )
+    return _http_client
+
+
+async def close_http_client():
+    """Close the shared HTTP client on application shutdown."""
+    global _http_client
+    if _http_client is not None:
+        await _http_client.aclose()
+        _http_client = None
+        logger.info("Plex HLS HTTP client closed")
+
+
+def get_plex_headers(access_token: str) -> dict:
+    """
+    Generate standard Plex API headers to maintain session.
+
+    @param access_token Plex server access token
+    @returns Dict of headers to include in requests
+    """
+    return {
+        "X-Plex-Token": access_token,
+        "X-Plex-Client-Identifier": "xtream-to-strm",
+        "X-Plex-Product": "Xtream to STRM",
+        "X-Plex-Platform": "Chrome",
+        "X-Plex-Device": "Linux",
+        "Accept": "*/*",
+        "Connection": "keep-alive",
+    }
 
 
 def stable_hash(s: str) -> str:
@@ -566,33 +616,34 @@ async def proxy_plex_stream(
     proxy_base_url = (proxy_base_setting.value if proxy_base_setting else "").rstrip('/')
 
     try:
-        async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
-            response = await client.get(plex_url)
-            response.raise_for_status()
+        client = get_http_client()
+        headers = get_plex_headers(server.access_token)
+        response = await client.get(plex_url, headers=headers)
+        response.raise_for_status()
 
-            master_content = response.text
-            logger.info(f"HLS master playlist fetched, length={len(master_content)}")
+        master_content = response.text
+        logger.info(f"HLS master playlist fetched, length={len(master_content)}")
 
-            # Rewrite ALL URLs to go through our proxy (both playlists AND segments)
-            rewritten_content = rewrite_playlist_urls(
-                content=master_content,
-                base_url=plex_url,
-                plex_base_url=server.uri.rstrip('/'),
-                access_token=server.access_token,
-                server_id=server_id,
-                rating_key=rating_key,
-                proxy_base_url=proxy_base_url,
-                key=key or ''
-            )
+        # Rewrite ALL URLs to go through our proxy (both playlists AND segments)
+        rewritten_content = rewrite_playlist_urls(
+            content=master_content,
+            base_url=plex_url,
+            plex_base_url=server.uri.rstrip('/'),
+            access_token=server.access_token,
+            server_id=server_id,
+            rating_key=rating_key,
+            proxy_base_url=proxy_base_url,
+            key=key or ''
+        )
 
-            return Response(
-                content=rewritten_content,
-                media_type="application/vnd.apple.mpegurl",
-                headers={
-                    "Access-Control-Allow-Origin": "*",
-                    "Cache-Control": "no-cache"
-                }
-            )
+        return Response(
+            content=rewritten_content,
+            media_type="application/vnd.apple.mpegurl",
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Cache-Control": "no-cache, no-store, must-revalidate"
+            }
+        )
     except httpx.HTTPError as e:
         logger.error(f"HLS proxy error: {e}")
         raise HTTPException(status_code=502, detail=f"Failed to fetch HLS playlist: {str(e)}")
@@ -607,14 +658,13 @@ async def hls_stream(
     db: Session = Depends(deps.get_db)
 ):
     """
-    Full passthrough HLS proxy endpoint.
+    Full passthrough HLS proxy endpoint with streaming support.
 
-    Fetches content from Plex in real-time and returns it. For playlists,
-    rewrites URLs to continue going through this proxy. For segments,
-    streams the binary data directly.
+    Uses a persistent HTTP client and streams segments in real-time
+    to minimize latency and keep the Plex transcoding session alive.
 
-    This approach keeps the Plex transcoding session alive by making
-    continuous requests as the client plays the stream.
+    For playlists (.m3u8), rewrites URLs to continue through this proxy.
+    For segments (.ts), streams binary data directly without buffering.
 
     @param server_id Database ID of the Plex server
     @param rating_key Plex rating key
@@ -642,51 +692,89 @@ async def hls_stream(
     proxy_base_setting = db.query(SettingsModel).filter(SettingsModel.key == "PLEX_PROXY_BASE_URL").first()
     proxy_base_url = (proxy_base_setting.value if proxy_base_setting else "").rstrip('/')
 
-    try:
-        async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
-            response = await client.get(decoded_url)
+    # Check if this is a playlist or segment based on URL extension
+    is_playlist = decoded_url.endswith(".m3u8") or "m3u8" in decoded_url
+
+    client = get_http_client()
+    headers = get_plex_headers(server.access_token)
+
+    if is_playlist:
+        # For playlists, fetch fully and rewrite URLs
+        try:
+            response = await client.get(decoded_url, headers=headers)
             response.raise_for_status()
 
-            content_type = response.headers.get("content-type", "")
+            content = response.text
+            rewritten_content = rewrite_playlist_urls(
+                content=content,
+                base_url=decoded_url,
+                plex_base_url=server.uri.rstrip('/'),
+                access_token=server.access_token,
+                server_id=server_id,
+                rating_key=rating_key,
+                proxy_base_url=proxy_base_url,
+                key=key or ''
+            )
 
-            # Check if this is a playlist (needs URL rewriting) or a segment (pass through)
-            is_playlist = "mpegurl" in content_type.lower() or decoded_url.endswith(".m3u8")
+            return Response(
+                content=rewritten_content,
+                media_type="application/vnd.apple.mpegurl",
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Cache-Control": "no-cache, no-store, must-revalidate"
+                }
+            )
+        except httpx.HTTPError as e:
+            logger.error(f"HLS playlist proxy error for {decoded_url[:80]}...: {e}")
+            raise HTTPException(status_code=502, detail=f"Failed to fetch HLS playlist: {str(e)}")
+    else:
+        # For segments (.ts), fetch with retry then stream
+        max_retries = 2
+        last_error = None
 
-            if is_playlist:
-                # Rewrite URLs in the playlist
-                content = response.text
-                rewritten_content = rewrite_playlist_urls(
-                    content=content,
-                    base_url=decoded_url,
-                    plex_base_url=server.uri.rstrip('/'),
-                    access_token=server.access_token,
-                    server_id=server_id,
-                    rating_key=rating_key,
-                    proxy_base_url=proxy_base_url,
-                    key=key or ''
-                )
+        for attempt in range(max_retries):
+            try:
+                # Fetch the segment (non-streaming first to allow retry)
+                response = await client.get(decoded_url, headers=headers)
+                response.raise_for_status()
 
-                return Response(
-                    content=rewritten_content,
-                    media_type="application/vnd.apple.mpegurl",
-                    headers={
-                        "Access-Control-Allow-Origin": "*",
-                        "Cache-Control": "no-cache"
-                    }
-                )
-            else:
-                # Binary content (video segments) - stream directly
+                # Success - return the content
                 return Response(
                     content=response.content,
-                    media_type=content_type or "video/mp2t",
+                    media_type="video/mp2t",
                     headers={
                         "Access-Control-Allow-Origin": "*",
-                        "Cache-Control": "no-cache"
+                        "Cache-Control": "no-cache, no-store, must-revalidate",
+                        "Connection": "keep-alive"
                     }
                 )
-    except httpx.HTTPError as e:
-        logger.error(f"HLS stream proxy error for {decoded_url[:80]}...: {e}")
-        raise HTTPException(status_code=502, detail=f"Failed to fetch HLS content: {str(e)}")
+            except httpx.HTTPStatusError as e:
+                last_error = e
+                if e.response.status_code == 404:
+                    # 404 means segment may not be ready yet or expired
+                    if attempt < max_retries - 1:
+                        logger.warning(f"Segment 404, retry {attempt + 1}/{max_retries}: ...{decoded_url[-50:]}")
+                        await asyncio.sleep(0.3 * (attempt + 1))  # Brief backoff
+                        continue
+                    else:
+                        logger.error(f"Segment 404 after {max_retries} retries: ...{decoded_url[-50:]}")
+                        raise HTTPException(status_code=502, detail="Segment not available (404)")
+                else:
+                    logger.error(f"Segment HTTP error {e.response.status_code}: ...{decoded_url[-50:]}")
+                    raise HTTPException(status_code=502, detail=f"Plex returned {e.response.status_code}")
+            except httpx.RequestError as e:
+                last_error = e
+                if attempt < max_retries - 1:
+                    logger.warning(f"Segment request error, retry {attempt + 1}/{max_retries}: {e}")
+                    await asyncio.sleep(0.3 * (attempt + 1))
+                    continue
+                else:
+                    logger.error(f"Segment request error after {max_retries} retries: {e}")
+                    raise HTTPException(status_code=502, detail=f"Failed to fetch segment: {str(e)}")
+
+        # If we get here, all retries failed
+        if last_error:
+            raise HTTPException(status_code=502, detail=f"Failed after {max_retries} retries")
 
 
 @router.get("/hls-cache/{server_id}/{rating_key}")
