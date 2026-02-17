@@ -426,8 +426,16 @@ async def process_plex_series(db: Session, client: PlexClient, plex_server, fm: 
             db.commit()
             return
 
-        total_added = 0
-        total_deleted = 0
+        # Load episode cache for this server
+        # Key: plex_key -> PlexEpisodeCache
+        all_cached_episodes = db.query(PlexEpisodeCache).filter(
+            PlexEpisodeCache.server_id == server_id
+        ).all()
+        cached_episodes = {e.plex_key: e for e in all_cached_episodes}
+
+        total_episodes_added = 0
+        total_episodes_skipped = 0
+        total_series_deleted = 0
 
         for library in libraries:
             logger.info(f"Processing Plex TV library: {library.title}")
@@ -443,35 +451,9 @@ async def process_plex_series(db: Session, client: PlexClient, plex_server, fm: 
                 ).all()
             }
 
-            to_add_update = []
             current_keys = set()
-
             for show in shows:
-                key = show["key"]
-                current_keys.add(key)
-
-                cached = cached_series.get(key)
-                if not cached:
-                    # New show - needs processing
-                    to_add_update.append(show)
-                else:
-                    # Existing show - only reprocess if critical metadata changed
-                    # or if season_count increased (new episodes likely)
-                    guid = show.get("guid", {})
-                    new_tmdb = guid.get("tmdb")
-                    cached_tmdb = None
-                    if cached.guid:
-                        try:
-                            import ast
-                            cached_guid = ast.literal_eval(cached.guid)
-                            cached_tmdb = cached_guid.get("tmdb")
-                        except:
-                            pass
-
-                    if (cached.title != show.get("title") or
-                        cached.year != str(show.get("year", "")) or
-                        cached_tmdb != new_tmdb):
-                        to_add_update.append(show)
+                current_keys.add(show["key"])
 
             # Detect deletions
             to_delete = [c for k, c in cached_series.items() if k not in current_keys]
@@ -484,12 +466,12 @@ async def process_plex_series(db: Session, client: PlexClient, plex_server, fm: 
                     PlexEpisodeCache.server_id == server_id,
                     PlexEpisodeCache.series_key == cached_show.plex_key
                 ).delete()
-                total_deleted += 1
+                total_series_deleted += 1
 
             db.commit()
 
-            # Process additions/updates
-            for show in to_add_update:
+            # Process ALL shows - episode cache will skip unchanged episodes
+            for show in shows:
                 try:
                     guid = show.get("guid", {})
                     tmdb_id = guid.get("tmdb")
@@ -513,7 +495,7 @@ async def process_plex_series(db: Session, client: PlexClient, plex_server, fm: 
 
                     fm.ensure_directory(series_dir)
 
-                    # Write tvshow.nfo
+                    # Write tvshow.nfo (will be skipped if unchanged)
                     show_nfo_path = os.path.join(series_dir, "tvshow.nfo")
                     show_nfo_content = generate_plex_show_nfo(show, fm)
                     await fm.write_nfo(show_nfo_path, show_nfo_content)
@@ -533,6 +515,22 @@ async def process_plex_series(db: Session, client: PlexClient, plex_server, fm: 
                         for episode in episodes:
                             ep_num = episode.get("episode_num", 0)
                             ep_title = episode.get("title", "")
+                            ep_plex_key = episode.get("key")
+                            ep_rating_key = episode.get("rating_key")
+
+                            # Check episode cache - skip if unchanged
+                            cached_ep = cached_episodes.get(ep_plex_key)
+                            if cached_ep:
+                                # Episode exists in cache - check if changed
+                                if (cached_ep.title == ep_title and
+                                    cached_ep.season_num == season_num and
+                                    cached_ep.episode_num == ep_num):
+                                    # Episode unchanged, skip
+                                    total_episodes_skipped += 1
+                                    continue
+
+                            # New or changed episode - process it
+                            total_episodes_added += 1
 
                             # Format episode filename
                             formatted_ep = f"S{season_num:02d}E{ep_num:02d}"
@@ -542,9 +540,7 @@ async def process_plex_series(db: Session, client: PlexClient, plex_server, fm: 
                             else:
                                 filename = formatted_ep
 
-                            # Build proxy URL for streaming (includes shared key for authentication)
-                            # The /stream.m3u8 suffix helps ExoPlayer-based clients detect HLS content
-                            ep_rating_key = episode.get("rating_key")
+                            # Build proxy URL for streaming
                             key_param = f"?key={shared_key}" if shared_key else ""
                             stream_url = f"{proxy_base_url}/api/v1/plex/proxy/{server_id}/{ep_rating_key}/stream.m3u8{key_param}"
 
@@ -557,7 +553,21 @@ async def process_plex_series(db: Session, client: PlexClient, plex_server, fm: 
                             ep_nfo_content = generate_plex_episode_nfo(episode, title, fm)
                             await fm.write_nfo(ep_nfo_path, ep_nfo_content)
 
-                    # Update cache
+                            # Update episode cache
+                            if not cached_ep:
+                                cached_ep = PlexEpisodeCache(
+                                    server_id=server_id,
+                                    series_key=show["key"],
+                                    plex_key=ep_plex_key
+                                )
+                                db.add(cached_ep)
+                                cached_episodes[ep_plex_key] = cached_ep
+
+                            cached_ep.season_num = season_num
+                            cached_ep.episode_num = ep_num
+                            cached_ep.title = ep_title
+
+                    # Update series cache
                     cached = cached_series.get(show["key"])
                     if not cached:
                         cached = PlexSeriesCache(
@@ -566,13 +576,11 @@ async def process_plex_series(db: Session, client: PlexClient, plex_server, fm: 
                             plex_key=show["key"]
                         )
                         db.add(cached)
+                        cached_series[show["key"]] = cached
 
                     cached.title = title
                     cached.year = str(year) if year else None
                     cached.guid = str(guid)
-                    cached.updated_at = show.get("updated_at")
-
-                    total_added += 1
 
                 except Exception as e:
                     logger.error(f"Error processing Plex show {show.get('title')}: {e}")
@@ -584,8 +592,10 @@ async def process_plex_series(db: Session, client: PlexClient, plex_server, fm: 
             library.last_sync = datetime.now()
             db.commit()
 
-        sync_state.items_added = total_added
-        sync_state.items_deleted = total_deleted
+        logger.info(f"Plex series sync: {total_episodes_added} episodes added/updated, {total_episodes_skipped} skipped (unchanged)")
+
+        sync_state.items_added = total_episodes_added
+        sync_state.items_deleted = total_series_deleted
         sync_state.status = "success"
         db.commit()
 
